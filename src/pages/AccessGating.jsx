@@ -70,22 +70,6 @@ const AccessGating = () => {
     fetchStatus();
   }, []);
 
-  const handleManualPurchase = async () => {
-    setProcessing(true);
-    const { error } = await supabase
-      .from('access_passes')
-      .insert([{
-        user_id: user.id,
-        status: 'ACTIVE',
-        granted_by_admin: false
-      }]);
-
-    if (!error) {
-      await fetchStatus();
-    }
-    setProcessing(false);
-  };
-
   const handleStart = async () => {
     setProcessing(true);
     try {
@@ -192,14 +176,6 @@ const AccessGating = () => {
             </button>
           ) : (
             <>
-              <button
-                className="primary-btn"
-                onClick={handleManualPurchase}
-                disabled={processing}
-              >
-                {processing ? <Loader2 className="animate-spin" /> : <ShoppingCart size={20} />}
-                <span>Adquirir Acesso (Demo)</span>
-              </button>
               <button className="secondary-btn" onClick={fetchStatus}>
                 <RefreshCw size={18} />
                 <span>Atualizar Status</span>
