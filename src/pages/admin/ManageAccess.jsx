@@ -26,7 +26,18 @@ const ManageAccess = () => {
             .order('pass_granted_at', { ascending: false, nullsFirst: false });
 
         if (viewError) console.error("Error fetching admin controls view:", viewError);
-        setUserData(users || []);
+
+        // Fetch roles from profiles to allow management
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, role');
+
+        const merged = (users || []).map(u => ({
+            ...u,
+            role: profiles?.find(p => p.id === u.id)?.role || 'USER'
+        }));
+
+        setUserData(merged);
         setLoading(false);
     };
 
@@ -43,6 +54,14 @@ const ManageAccess = () => {
                 granted_by_admin: true,
                 plan: 'BASICO'
             }]);
+        if (!error) fetchData();
+    };
+
+    const handleUpdateRole = async (userId, newRole) => {
+        const { error } = await supabase
+            .from('profiles')
+            .update({ role: newRole })
+            .eq('id', userId);
         if (!error) fetchData();
     };
 
@@ -193,7 +212,8 @@ const ManageAccess = () => {
                 .admin-table th:nth-child(1), .admin-table td:nth-child(1) { width: 220px; }
                 .admin-table th:nth-child(2), .admin-table td:nth-child(2) { width: 130px; }
                 .admin-table th:nth-child(3), .admin-table td:nth-child(3) { width: 100px; }
-                .admin-table th:nth-child(7), .admin-table td:nth-child(7) { width: 140px; }
+                .admin-table th:nth-child(4), .admin-table td:nth-child(4) { width: 100px; }
+                .admin-table th:nth-child(8), .admin-table td:nth-child(8) { width: 140px; }
                 `
             }} />
 
@@ -222,6 +242,7 @@ const ManageAccess = () => {
                             <th>Usuário</th>
                             <th>Passe</th>
                             <th>Plano</th>
+                            <th>Cargo</th>
                             <th>Conclusão</th>
                             <th>Perfil</th>
                             <th>Último Login</th>
@@ -278,6 +299,26 @@ const ManageAccess = () => {
                                         >
                                             <option value="BASICO">Básico</option>
                                             <option value="OURO">Ouro</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select
+                                            className="plan-select"
+                                            value={u.role || 'USER'}
+                                            onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                                            style={{
+                                                background: 'var(--bg-tertiary)',
+                                                border: '1px solid var(--glass-border)',
+                                                color: 'var(--text-primary)',
+                                                padding: '0.3rem 0.5rem',
+                                                borderRadius: '0.4rem',
+                                                fontSize: '0.75rem',
+                                                fontWeight: '700',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="USER">Usuário</option>
+                                            <option value="ADMIN">Admin</option>
                                         </select>
                                     </td>
                                     <td>
