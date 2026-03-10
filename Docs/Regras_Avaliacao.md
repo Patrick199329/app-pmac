@@ -12,9 +12,8 @@ O sistema declara um **Vencedor Único** (`DONE`) nos seguintes casos:
 
 ## 3. Regras de Empate (Rule 5)
 O status de **EMPATE** (`TIE`) é declarado para disparar o questionário de desempate (DE):
-- **Regra 5a/b**: Dois ou mais tipos empatam com a mesma pontuação máxima (sendo esta $\ge 3$).
-- **Regra 5c**: Um tipo tem 4 votos e outro tem 3 votos.
-- **Regra 5d**: Um tipo tem 3 votos e outro tem 2 votos.
+- **Regra 5a (Desempate Inclusivo)**: Quando nenhum tipo atinge a vitória (Regra 4), o sistema entra em status de **EMPATE** (`TIE`) incluindo **todos os tipos que receberam 1 ou mais votos**.
+    - *Nota*: Por solicitação do cliente, a exclusão de perfis com poucos votos foi suspensa para evitar manipulação do resultado.
 
 ## 4. Inconsistência (Rule 6)
 O status **INCONSISTENTE** é aplicado quando a distribuição é muito fragmentada, impedindo uma análise confiável:
@@ -29,20 +28,23 @@ O status **INCONSISTENTE** é aplicado quando a distribuição é muito fragment
 Quando o status **TIE** é atingido no questionário básico, o usuário é direcionado para o módulo de desempate.
 
 ### 6.1 Funcionamento do Motor DE
-- **Estrutura**: 5 perguntas fixas com opções dinâmicas.
+- **Estrutura**: 7 perguntas fixas com opções dinâmicas (expandido de 5 para 7).
 - **Opções Dinâmicas**: O sistema filtra e exibe apenas as opções dos Tipos que estão em disputa no empate.
-- **Variedade de Frases**: Cada Tipo possui 2 opções de frase por pergunta. O motor sorteia aleatoriamente entre a versão '01' ou '02' de cada tipo em cada execução para evitar previsibilidade.
-- **Ordem**: Tanto as 5 perguntas quanto as opções dentro delas são exibidas em ordem aleatória.
+- **Variedade de Frases**: Cada Tipo possui 2 opções de frase por pergunta. O motor sorteia aleatoriamente entre a versão '01' ou '02'.
+    - *Exceção*: Para as questões 6 e 7 (novas), como não há variantes distintas, a mesma pergunta é duplicada para manter a diversidade do algoritmo sem risco à mecânica original.
+- **Ordem**: Tanto as 7 perguntas quanto as opções dentro delas são exibidas em ordem aleatória.
 
 ### 6.2 Vitória no Desempate (Regra 7)
 - O vencedor é definido quando um Tipo obtém uma quantidade de respostas **estritamente superior** a todos os demais tipos participantes do desempate.
-- Caso o empate persista após as 5 perguntas (ex: 2 votos para T3 e 2 para T4), o processo se repete com novas combinações de frases até que um vencedor seja isolado.
+- Caso o empate persista após as 7 perguntas, o processo se repete (Regra 5a recorrente) até que um vencedor seja isolado.
 
-## 7. Subtipos (Instintos)
+### 7.1 Diferenciação de Jornada por Plano
+O fluxo após a definição do Tipo Base (ou conclusão do Desempate) depende do plano do usuário:
 
-Após a definição do Tipo Base (T1-T9), o sistema inicia automaticamente o módulo de Subtipos para determinar o **Instinto Predominante**.
+- **Plano BÁSICO**: A jornada encerra imediatamente. O usuário é levado à tela de resultados, onde visualiza seu Tipo Principal (1 a 9) com nome amigável e tem acesso ao download do **Relatório de Perfil Básico**.
+- **Plano OURO**: A jornada continua para o módulo de Subtipos para determinar o **Instinto Predominante** e o Arquétipo final.
 
-### 7.1 Estrutura do Módulo de Subtipos
+### 7.2 Estrutura do Módulo de Subtipos (Plano Ouro)
 - **Frequência**: 5 perguntas específicas para o Tipo Base identificado.
 - **Opções**: 3 frases por pergunta, cada uma correspondendo a um instinto:
     - **A**: Autopreservação (Score Type 1)

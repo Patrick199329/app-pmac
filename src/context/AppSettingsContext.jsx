@@ -27,7 +27,7 @@ export const AppSettingsProvider = ({ children }) => {
         subtype_intro_btn: 'Descobrir meu Subtipo',
         tiebreaker_intro_title: 'Módulo de Desempate',
         tiebreaker_intro_text: 'Identificamos um equilíbrio entre os tipos selecionados.',
-        tiebreaker_intro_item1: 'Este questionário curto de 5 perguntas ajudará a definir seu perfil predominante.',
+        tiebreaker_intro_item1: 'Este questionário curto de 7 perguntas ajudará a definir seu perfil predominante.',
         tiebreaker_intro_item2: 'Analise as frases com atenção redobrada.',
         tiebreaker_intro_item3: 'Escolha a que mais se aproxima da sua realidade atual.',
         tiebreaker_intro_btn: 'Iniciar Desempate'

@@ -108,7 +108,7 @@ const ManageAccess = () => {
     };
 
     const handleViewReport = async (user) => {
-        if (!user.latest_result_type || !user.latest_archetype_title) {
+        if (!user.latest_result_type) {
             alert("Este usuário ainda não concluiu o teste ou não possui um perfil definido.");
             return;
         }
@@ -124,11 +124,16 @@ const ManageAccess = () => {
 
             if (attError || !attempt) throw new Error("Não foi possível localizar os dados da tentativa.");
 
+            const isOuro = (user.plan || 'BASICO') === 'OURO';
             const winnerCode = attempt.meta_json?.winner; // Ex: ST4A
-            if (!winnerCode) throw new Error("Código de perfil não encontrado na tentativa.");
 
-            const subtypeCode = `T${user.latest_result_type}${winnerCode.slice(-1)}`;
-            console.log(`Admin Gerando: ${subtypeCode} para ${user.name}`);
+            // Constrói o código: T2 para Básico, T2A para Ouro
+            let subtypeCode = `T${user.latest_result_type}`;
+            if (isOuro && winnerCode) {
+                subtypeCode += winnerCode.slice(-1);
+            }
+
+            console.log(`Admin Gerando (${isOuro ? 'OURO' : 'BASICO'}): ${subtypeCode} para ${user.name}`);
 
             const { data: { session } } = await supabase.auth.getSession();
 

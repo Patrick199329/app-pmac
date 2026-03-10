@@ -112,7 +112,7 @@ const SubtypeFinish = () => {
             .eq('id', attemptId)
             .single();
 
-        // Create a new iteration
+        // Create a new iteration (2ª Rodada com Variante 02 fixa)
         const { data: nextAttempt } = await supabase
             .from('attempts')
             .insert({
@@ -121,7 +121,7 @@ const SubtypeFinish = () => {
                 status: 'IN_PROGRESS',
                 meta_json: {
                     ...attempt.meta_json,
-                    variant: '02', // Move to variant 2
+                    variant: '02', // Sempre Variante 02 no empate do subtipo
                     iteration: (attempt.meta_json.iteration || 1) + 1,
                     question_order: attempt.meta_json.question_order.sort(() => Math.random() - 0.5)
                 }

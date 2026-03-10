@@ -72,17 +72,12 @@ const QuestionnaireFinish = () => {
                     typeResult = first.type;
                     winners = [first.type];
                 }
-                // Rule 5: Ties
-                else if (
-                    (first.count === second.count && first.count >= 3) || // a, b: Multiple types share max (>=3)
-                    (first.count === 4 && second.count === 3) ||       // c: 4 vs 3
-                    (first.count === 3 && second.count === 2)          // d: 3 vs 2
-                ) {
+                // Rule 5: Ties (Regra 5a revisada)
+                else if (sortedCounts.filter(item => item.count > 0).length > 1) {
                     finalStatus = 'TIE';
-                    // Determine winners for the tie-breaker
-                    const maxVal = first.count;
+                    // Todos os tipos que obtiveram pelo menos 1 resposta estão empatados
                     winners = sortedCounts
-                        .filter(item => item.count === maxVal || (maxVal === 4 && item.count === 3) || (maxVal === 3 && item.count === 2))
+                        .filter(item => item.count > 0)
                         .map(item => item.type);
                 }
                 // Rule 6: Inconsistency (Any other case)
@@ -120,6 +115,18 @@ const QuestionnaireFinish = () => {
 
                 if (attemptUpdateError) throw attemptUpdateError;
 
+                // 5a. Fetch active plan for redirection logic
+                const { data: pass } = await supabase
+                    .from('access_passes')
+                    .select('plan')
+                    .eq('user_id', user.id)
+                    .eq('status', 'ACTIVE')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                const userPlan = pass?.plan || 'BASICO';
+
                 const { error: resultError } = await supabase
                     .from('results')
                     .upsert({
@@ -134,7 +141,12 @@ const QuestionnaireFinish = () => {
                 setStatus('success');
                 setTimeout(() => {
                     if (finalStatus === 'DONE' && typeResult) {
-                        navigate(`/st/start?type=${typeResult}`);
+                        // Se o plano for Ouro, segue para subtipo. Se for Básico, vai para o resultado.
+                        if (userPlan === 'OURO') {
+                            navigate(`/st/start?type=${typeResult}`);
+                        } else {
+                            navigate(`/result/${attemptId}`);
+                        }
                     } else {
                         navigate(`/result/${attemptId}`);
                     }

@@ -44,3 +44,16 @@ Cópia otimizada para visualização rápida.
 Rastro de visualização de instruções.
 - `video_key`: Identificador do vídeo (intro_1, intro_2)
 - `user_id`: FK para profiles
+
+### `access_passes`
+Gerenciamento de planos e validade de acesso.
+- `plan`: 'BASICO' ou 'OURO'
+- `status`: 'ACTIVE' ou 'REVOKED'
+- `user_id`: FK para profiles
+
+### `report_assets`
+Configuração de arquivos para download.
+- `subtype`: Código do tipo (T2) ou subtipo (T2A)
+- `plan`: Plano ao qual o arquivo pertence
+- `asset_type`: 'PDF' (estático) ou 'DOCX' (template para preenchimento dinâmico)
+- `file_url`: Link de acesso público no Storage

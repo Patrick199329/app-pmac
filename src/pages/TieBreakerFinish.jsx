@@ -56,11 +56,11 @@ const TieBreakerFinish = () => {
                     typeResult = first.type;
                     winners = [first.type];
                 } else {
-                    // It's still a tie between whoever has the max count
+                    // It's still a tie (Regra 5a aplicada ao desempate)
                     finalStatus = 'TIE';
-                    const maxCount = first.count;
+                    // Mantém todos os tipos que obtiveram pelo menos 1 resposta neste desempate
                     winners = sortedCounts
-                        .filter(item => item.count === maxCount)
+                        .filter(item => item.count > 0)
                         .map(item => item.type);
                 }
 
@@ -93,6 +93,18 @@ const TieBreakerFinish = () => {
 
                 if (attError) throw attError;
 
+                // 5a. Fetch active plan for redirection logic
+                const { data: pass } = await supabase
+                    .from('access_passes')
+                    .select('plan')
+                    .eq('user_id', user.id)
+                    .eq('status', 'ACTIVE')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                const userPlan = pass?.plan || 'BASICO';
+
                 const { error: resError } = await supabase
                     .from('results')
                     .upsert({
@@ -107,7 +119,12 @@ const TieBreakerFinish = () => {
                 setStatus('success');
                 setTimeout(() => {
                     if (finalStatus === 'DONE' && typeResult) {
-                        navigate(`/st/start?type=${typeResult}`);
+                        // Se o plano for Ouro, segue para subtipo. Se for Básico, vai para o resultado.
+                        if (userPlan === 'OURO') {
+                            navigate(`/st/start?type=${typeResult}`);
+                        } else {
+                            navigate(`/result/${attemptId}`);
+                        }
                     } else {
                         navigate(`/result/${attemptId}`);
                     }

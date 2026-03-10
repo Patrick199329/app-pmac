@@ -68,7 +68,7 @@ const ResultView = () => {
       setAttempt(att);
 
       // Fetch Plan and Report
-      if (res && att?.kind === 'SUBTYPE') {
+      if (res && att) {
         const ownerId = att.user_id;
         if (ownerId) {
           const { data: pass } = await supabase
@@ -78,20 +78,38 @@ const ResultView = () => {
             .eq('status', 'ACTIVE')
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           const plan = pass?.plan || 'BASICO';
           setUserPlan(plan);
 
-          const subtypeCode = `T${res.type_result}${att.meta_json.winner?.slice(-1)}`;
-          const { data: asset } = await supabase
-            .from('report_assets')
-            .select('*')
-            .eq('subtype', subtypeCode)
-            .eq('plan', plan)
-            .single();
+          let foundAsset = null;
 
-          if (asset) setReportAsset(asset);
+          if (plan === 'OURO' && att?.kind === 'SUBTYPE') {
+            const subtypeCode = `T${res.type_result}${att.meta_json.winner?.slice(-1)}`;
+            const { data: asset } = await supabase
+              .from('report_assets')
+              .select('*')
+              .eq('subtype', subtypeCode)
+              .eq('plan', 'OURO')
+              .maybeSingle();
+
+            if (asset) foundAsset = asset;
+          }
+
+          // Fallback para Básico (se não encontrou Ouro ou se é plano Básico)
+          if (!foundAsset) {
+            const { data: asset } = await supabase
+              .from('report_assets')
+              .select('*')
+              .eq('subtype', `T${res.type_result}`)
+              .eq('plan', 'BASICO')
+              .maybeSingle();
+
+            if (asset) foundAsset = asset;
+          }
+
+          if (foundAsset) setReportAsset(foundAsset);
         }
       }
 
@@ -113,7 +131,11 @@ const ResultView = () => {
     // Trigger the Edge Function for dynamic generation using fetch for better debugging
     setGenerating(true);
     try {
-      const subtypeCode = `T${result.type_result}${attempt.meta_json.winner?.slice(-1)}`;
+      const isSubtype = attempt?.kind === 'SUBTYPE';
+      const subtypeCode = isSubtype
+        ? `T${result.type_result}${attempt.meta_json.winner?.slice(-1)}`
+        : `T${result.type_result}`;
+
       const { data: { session } } = await supabase.auth.getSession();
 
       const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dxgxdgnuzimhgmwhdkcd.supabase.co';
@@ -126,7 +148,11 @@ const ResultView = () => {
           'Authorization': `Bearer ${session?.access_token}`,
           'apikey': anonKey
         },
-        body: JSON.stringify({ subtypeCode, userPlan })
+        body: JSON.stringify({
+          subtypeCode,
+          userPlan,
+          isBasic: userPlan === 'BASICO'
+        })
       });
 
       const resText = await response.text().catch(() => "Sem corpo de resposta");
@@ -202,27 +228,49 @@ const ResultView = () => {
             </div>
             <div className="outcome-text">
               <h2>
-                {attempt?.kind === 'SUBTYPE' && attempt.meta_json.archetype_title ? (
+                {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE' && attempt.meta_json.archetype_title ? (
                   <>
                     <span className="archetype-label">Seu Perfil Final:</span>
                     <br />
                     <span className="archetype-title">{attempt.meta_json.archetype_title}</span>
                   </>
                 ) : (
-                  `Seu Tipo: PMAC T${result.type_result}`
+                  <>
+                    <span className="archetype-label">Seu Tipo:</span>
+                    <br />
+                    <span className="archetype-title">
+                      {result.type_result === 1 && 'Perfeccionista'}
+                      {result.type_result === 2 && 'Ajudador'}
+                      {result.type_result === 3 && 'Realizador'}
+                      {result.type_result === 4 && 'Emocional'}
+                      {result.type_result === 5 && 'Analítico'}
+                      {result.type_result === 6 && 'Questionador'}
+                      {result.type_result === 7 && 'Entusiasta'}
+                      {result.type_result === 8 && 'Dominador'}
+                      {result.type_result === 9 && 'Mediador'}
+                    </span>
+                  </>
                 )}
               </h2>
               <p>
-                {attempt?.kind === 'SUBTYPE'
+                {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE'
                   ? `Análise concluída com sucesso. Você é uma personalidade Tipo ${result.type_result} com instinto dominante ${attempt.meta_json.winner?.endsWith('A') ? 'Autopreservação' : attempt.meta_json.winner?.endsWith('S') ? 'Social' : 'Relacional'}.`
-                  : `Com base em suas respostas, sua personalidade predominante se alinha ao Tipo ${result.type_result}.`
+                  : `Com base em suas respostas, sua personalidade predominante se alinha ao perfil de um ${result.type_result === 1 ? 'Perfeccionista' :
+                    result.type_result === 2 ? 'Ajudador' :
+                      result.type_result === 3 ? 'Realizador' :
+                        result.type_result === 4 ? 'Emocional' :
+                          result.type_result === 5 ? 'Analítico' :
+                            result.type_result === 6 ? 'Questionador' :
+                              result.type_result === 7 ? 'Entusiasta' :
+                                result.type_result === 8 ? 'Dominador' : 'Mediador'
+                  }.`
                 }
               </p>
             </div>
           </div>
         )}
 
-        {result.status_copy === 'DONE' && attempt?.kind === 'SUBTYPE' && (
+        {result.status_copy === 'DONE' && (attempt?.kind === 'SUBTYPE' || userPlan === 'BASICO') && (
           <div className="report-delivery-box glass-panel fade-in" style={{
             marginTop: '-1rem',
             background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(16, 185, 129, 0.1))',
@@ -233,8 +281,8 @@ const ResultView = () => {
               <FileIcon size={40} color="var(--accent-primary)" />
             </div>
             <div className="delivery-content">
-              <h3>Seu Relatório Completo ({userPlan})</h3>
-              <p>O dossiê detalhado do seu perfil PMAC está pronto para download.</p>
+              <h3>{userPlan === 'OURO' ? 'Seu Relatório Completo' : 'Seu Relatório de Perfil'} ({userPlan})</h3>
+              <p>{userPlan === 'OURO' ? 'O dossiê detalhado do seu perfil PMAC está pronto.' : 'O relatório básico do seu tipo PMAC está pronto para download.'}</p>
               {reportAsset ? (
                 <button
                   onClick={handleDownloadReport}

@@ -72,7 +72,7 @@ const TieBreakerStart = () => {
                     meta_json: {
                         tied_types: tiedTypes,
                         question_order: questions.map(q => q.id).sort(() => Math.random() - 0.5),
-                        phrase_seeds: questions.map(() => Math.random() > 0.5 ? 1 : 0) // Select 01 or 02 suffix randomly
+                        phrase_seeds: questions.map(() => Math.random() > 0.5 ? 1 : 0) // Select 01 or 02 suffix randomly para todas as questões (agora 7)
                     }
                 })
                 .select()

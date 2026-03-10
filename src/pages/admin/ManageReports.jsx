@@ -29,7 +29,8 @@ const ManageReports = () => {
     ];
     const plans = ['BASICO', 'OURO'];
 
-    const subtypes = types.flatMap(t => instincts.map(i => `T${t}${i.key}`));
+    const subtypesGold = types.flatMap(t => instincts.map(i => `T${t}${i.key}`));
+    const subtypesBasic = types.map(t => `T${t}`);
 
     const fetchMappings = async () => {
         setLoading(true);
@@ -158,7 +159,7 @@ const ManageReports = () => {
                     <section key={plan} className="plan-section">
                         <h2 className="plan-title">{plan === 'BASICO' ? 'Plano Básico' : 'Plano Ouro'}</h2>
                         <div className="subtype-grid">
-                            {subtypes.map(subtype => {
+                            {(plan === 'BASICO' ? subtypesBasic : subtypesGold).map(subtype => {
                                 const mapping = mappings.find(m => m.subtype === subtype && m.plan === plan);
                                 return (
                                     <div key={`${plan}-${subtype}`} className={`subtype-card glass-panel ${mapping?.asset_type === 'DOCX' ? 'is-dynamic' : ''}`}>

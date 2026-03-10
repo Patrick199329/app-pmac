@@ -102,7 +102,7 @@ const TieBreakerEngine = () => {
 
             // Auto-advance with slight delay for UX
             setTimeout(() => {
-                if (currentStep < 4) {
+                if (currentStep < 6) { // Agora 7 questões (índice 0 a 6)
                     navigate(`/de/q/${currentStep + 1}?attemptId=${attemptId}`);
                 } else {
                     navigate(`/de/finish?attemptId=${attemptId}`);
@@ -128,11 +128,11 @@ const TieBreakerEngine = () => {
     return (
         <div className="engine-container fade-in">
             <div className="progress-header">
-                <div className="step-info">Questão {currentStep + 1} de 5</div>
+                <div className="step-info">Questão {currentStep + 1} de 7</div>
                 <div className="progress-bar-bg">
                     <div
                         className="progress-bar-fill"
-                        style={{ width: `${((currentStep + 1) / 5) * 100}%` }}
+                        style={{ width: `${((currentStep + 1) / 7) * 100}%` }}
                     ></div>
                 </div>
             </div>
