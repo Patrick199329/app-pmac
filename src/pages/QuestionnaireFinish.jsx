@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../services/supabase';
+import { supabase, getUserActivePlan } from '../services/supabase';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 import confetti from 'canvas-confetti';
@@ -72,7 +72,7 @@ const QuestionnaireFinish = () => {
                     typeResult = first.type;
                     winners = [first.type];
                 }
-                // Rule 5: Ties (Regra 5a revisada)
+                // Rule 5: Ties (Regra 5a revisada - Agora inclusiva para qualquer empate)
                 else if (sortedCounts.filter(item => item.count > 0).length > 1) {
                     finalStatus = 'TIE';
                     // Todos os tipos que obtiveram pelo menos 1 resposta estão empatados
@@ -80,7 +80,7 @@ const QuestionnaireFinish = () => {
                         .filter(item => item.count > 0)
                         .map(item => item.type);
                 }
-                // Rule 6: Inconsistency (Any other case)
+                // Rule 6: Inconsistency (Apenas se não houver NENHUMA resposta válida)
                 else {
                     finalStatus = 'INCONSISTENT';
                     winners = [];
@@ -115,28 +115,14 @@ const QuestionnaireFinish = () => {
 
                 if (attemptUpdateError) throw attemptUpdateError;
 
-                // 5a. Fetch active plan for redirection logic
-                const { data: pass } = await supabase
-                    .from('access_passes')
-                    .select('plan')
-                    .eq('user_id', user.id)
-                    .eq('status', 'ACTIVE')
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single();
+                const userPlan = await getUserActivePlan(user.id);
 
-                const userPlan = pass?.plan || 'BASICO';
-
-                const { error: resultError } = await supabase
-                    .from('results')
-                    .upsert({
-                        user_id: user.id,
-                        attempt_id: attemptId,
-                        type_result: typeResult,
-                        status_copy: finalStatus
-                    }, { onConflict: 'attempt_id' });
-
-                if (resultError) throw resultError;
+                await supabase.from('results').upsert({
+                    user_id: user.id,
+                    attempt_id: attemptId,
+                    type_result: typeResult,
+                    status_copy: finalStatus
+                }, { onConflict: 'attempt_id' });
 
                 setStatus('success');
                 setTimeout(() => {
@@ -169,46 +155,98 @@ const QuestionnaireFinish = () => {
         <div className="finish-container fade-in">
             <div className="finish-card glass-panel">
                 {status === 'success' && (
-                    <>
-                        <CheckCircle className="success-text" size={64} />
+                    <div className="finish-content animate-success">
+                        <CheckCircle className="success-icon" size={80} />
                         <h2>Análise Concluída!</h2>
-                        <p>Redirecionando para o seu resultado em instantes.</p>
-                    </>
+                        <p>Identificamos seu perfil com sucesso.</p>
+                        <div className="redirect-status">
+                            <Loader2 className="animate-spin" size={20} />
+                            <span>Redirecionando para o resultado...</span>
+                        </div>
+                    </div>
                 )}
 
                 {status === 'error' && (
-                    <>
-                        <AlertCircle className="danger-text" size={64} />
+                    <div className="finish-content animate-error">
+                        <AlertCircle className="danger-icon" size={80} />
                         <h2>Ops! Algo deu errado.</h2>
-                        <p>Não conseguimos processar seu resultado. Por favor, tente novamente ou contate o suporte.</p>
-                        <button className="primary-btn" onClick={() => navigate('/access')}>Voltar ao início</button>
-                    </>
+                        <p>Não conseguimos processar seu resultado neste momento.</p>
+                        <button className="primary-btn" onClick={() => navigate('/access')}>Tentar Novamente</button>
+                    </div>
                 )}
             </div>
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-        .finish-container {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: calc(100vh - 200px);
-        }
+                .finish-container {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: calc(100vh - 100px);
+                    padding: 2rem;
+                    background: var(--bg-primary);
+                }
 
-        .finish-card {
-          max-width: 500px;
-          width: 100%;
-          padding: 4rem;
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 1.5rem;
-        }
+                .finish-card {
+                    max-width: 500px;
+                    width: 100%;
+                    padding: 4rem 3rem;
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    border-radius: 2rem;
+                    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+                }
 
-        .success-text { color: var(--accent-secondary); }
-        .danger-text { color: var(--accent-danger); }
-      `}} />
+                .finish-content {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 1.5rem;
+                }
+
+                .success-icon { color: var(--accent-secondary); filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.3)); }
+                .danger-icon { color: var(--accent-danger); }
+                .accent-text { color: var(--accent-primary); }
+
+                .finish-card h2 {
+                    font-size: 2rem;
+                    color: var(--text-primary);
+                    margin: 0;
+                }
+
+                .finish-card p {
+                    font-size: 1.1rem;
+                    color: var(--text-secondary);
+                    margin: 0;
+                }
+
+                .redirect-status {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    margin-top: 1rem;
+                    padding: 0.75rem 1.5rem;
+                    background: rgba(139, 92, 246, 0.05);
+                    border-radius: 3rem;
+                    color: var(--accent-primary);
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                }
+
+                .animate-success { animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+                @keyframes scaleIn {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+                
+                .animate-spin { animation: spin 1s linear infinite; }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}} />
         </div>
     );
 };

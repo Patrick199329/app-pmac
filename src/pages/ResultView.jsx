@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../services/supabase';
+import { supabase, getUserActivePlan } from '../services/supabase';
 import {
   BarChart2,
   AlertTriangle,
@@ -71,16 +71,7 @@ const ResultView = () => {
       if (res && att) {
         const ownerId = att.user_id;
         if (ownerId) {
-          const { data: pass } = await supabase
-            .from('access_passes')
-            .select('plan')
-            .eq('user_id', ownerId)
-            .eq('status', 'ACTIVE')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          const plan = pass?.plan || 'BASICO';
+          const plan = await getUserActivePlan(ownerId);
           setUserPlan(plan);
 
           let foundAsset = null;

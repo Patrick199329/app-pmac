@@ -145,36 +145,118 @@ const SubtypeFinish = () => {
         <div className="finish-container fade-in">
             <div className="finish-card glass-panel">
                 {status === 'success' && (
-                    <>
-                        <CheckCircle className="success-text" size={64} />
+                    <div className="finish-content animate-success">
+                        <CheckCircle className="success-icon" size={80} />
                         <h2>Perfil Completo Definido!</h2>
                         <p>Preparando seu relatório personalizado...</p>
-                    </>
+                        <div className="redirect-status">
+                            <Loader2 className="animate-spin" size={20} />
+                            <span>Redirecionando para o resultado...</span>
+                        </div>
+                    </div>
                 )}
 
                 {status === 'tie' && (
-                    <>
-                        <RefreshCw className="accent-text" size={64} />
+                    <div className="finish-content animate-success">
+                        <RefreshCw className="warning-icon" size={80} />
                         <h2>Empate de Instintos</h2>
-                        <p>Houve um equilíbrio em suas respostas. Vamos realizar uma segunda rodada com frases alternativas para maior precisão.</p>
-                        <button className="primary-btn" onClick={handleRetry}>Iniciar 2ª Rodada</button>
-                    </>
+                        <p>Houve um equilíbrio em suas respostas.</p>
+                        <p className="subtitle">Vamos realizar uma segunda rodada para maior precisão.</p>
+                        <button className="primary-btn pulse" onClick={handleRetry}>Iniciar 2ª Rodada</button>
+                    </div>
                 )}
 
                 {status === 'error' && (
-                    <>
-                        <AlertCircle className="danger-text" size={64} />
+                    <div className="finish-content animate-error">
+                        <AlertCircle className="danger-icon" size={80} />
                         <h2>Erro no processamento.</h2>
                         <button className="primary-btn" onClick={() => navigate('/access')}>Sair</button>
-                    </>
+                    </div>
                 )}
             </div>
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-                .finish-container { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 200px); }
-                .finish-card { max-width: 500px; width: 100%; padding: 4rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
-                .success-text { color: var(--accent-secondary); }
+                .finish-container {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: calc(100vh - 100px);
+                    padding: 2rem;
+                    background: var(--bg-primary);
+                }
+
+                .finish-card {
+                    max-width: 500px;
+                    width: 100%;
+                    padding: 4rem 3rem;
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    border-radius: 2rem;
+                    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+                }
+
+                .finish-content {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 1.5rem;
+                }
+
+                .success-icon { color: var(--accent-secondary); filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.3)); }
+                .warning-icon { color: var(--accent-warning); }
+                .danger-icon { color: var(--accent-danger); }
+
+                .finish-card h2 {
+                    font-size: 2rem;
+                    color: var(--text-primary);
+                    margin: 0;
+                }
+
+                .finish-card p {
+                    font-size: 1.1rem;
+                    color: var(--text-secondary);
+                    margin: 0;
+                }
+
+                .subtitle {
+                    font-size: 0.95rem !important;
+                    opacity: 0.8;
+                }
+
+                .redirect-status {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    margin-top: 1rem;
+                    padding: 0.75rem 1.5rem;
+                    background: rgba(139, 92, 246, 0.05);
+                    border-radius: 3rem;
+                    color: var(--accent-primary);
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                }
+
+                .animate-success { animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+                @keyframes scaleIn {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+
+                .animate-spin { animation: spin 1s linear infinite; }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+
+                .pulse { animation: pulse-ring 2s infinite; }
+                @keyframes pulse-ring {
+                    0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+                    70% { box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+                }
             `}} />
         </div>
     );

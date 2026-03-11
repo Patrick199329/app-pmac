@@ -45,3 +45,16 @@ export const getUserProfile = async (userId) => {
         .single();
     return data;
 };
+export const getUserActivePlan = async (userId) => {
+    if (!userId) return 'BASICO';
+    const { data: pass } = await supabase
+        .from('access_passes')
+        .select('plan')
+        .eq('user_id', userId)
+        .eq('status', 'ACTIVE')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    return pass?.plan || 'BASICO';
+};

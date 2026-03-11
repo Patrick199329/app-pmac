@@ -20,10 +20,10 @@ const TieBreakerStart = () => {
                 return;
             }
 
-            // Fetch the latest TIE result
+            // Fetch the latest TIE result (could be from BASIC or a previous TIE_BREAKER)
             const { data: latestTie } = await supabase
                 .from('attempts')
-                .select('meta_json')
+                .select('kind, meta_json')
                 .eq('user_id', user.id)
                 .eq('status', 'TIE')
                 .order('created_at', { ascending: false })
@@ -36,11 +36,14 @@ const TieBreakerStart = () => {
             }
 
             setTiedTypes(latestTie.meta_json.winners);
+            setPreviousAttempt(latestTie);
             setChecking(false);
         };
 
         checkTie();
     }, [navigate]);
+
+    const [previousAttempt, setPreviousAttempt] = useState(null);
 
     const handleStart = async () => {
         setLoading(true);
@@ -48,21 +51,47 @@ const TieBreakerStart = () => {
         const { data: { user } } = await supabase.auth.getUser();
 
         try {
-            // 1. Fetch DE Question Set
+            // 1. Determine Iteration
+            const prevIteration = previousAttempt?.kind === 'TIE_BREAKER' 
+                ? (previousAttempt.meta_json?.iteration || 1) 
+                : 0;
+            const currentIteration = prevIteration + 1;
+
+            // 2. Fetch DE Question Set
             const { data: qSet } = await supabase
                 .from('question_sets')
                 .select('id')
                 .eq('key', 'TIE_BREAKER')
                 .single();
 
-            // 2. Fetch all 5 DE questions
-            const { data: questions } = await supabase
+            // 3. Fetch DE questions
+            let questionsQuery = supabase
                 .from('questions')
-                .select('id')
-                .eq('question_set_id', qSet.id);
+                .select('id, order_index')
+                .eq('question_set_id', qSet.id)
+                .order('order_index', { ascending: true });
+            
+            // Rule: 3rd iteration onwards uses only 5 questions
+            if (currentIteration >= 3) {
+                questionsQuery = questionsQuery.limit(5);
+            }
 
-            // 3. Create NEW attempt for TIE_BREAKER
-            // We store the tied types in meta to guide the engine
+            const { data: questions } = await questionsQuery;
+
+            // 4. Define Phrase Seeds (Variants)
+            // Iteration 1: All '0' (Suffix 01)
+            // Iteration 2: All '1' (Suffix 02)
+            // Iteration 3+: Random (0 or 1)
+            let phraseSeeds;
+            if (currentIteration === 1) {
+                phraseSeeds = questions.map(() => 0);
+            } else if (currentIteration === 2) {
+                phraseSeeds = questions.map(() => 1);
+            } else {
+                phraseSeeds = questions.map(() => Math.random() > 0.5 ? 1 : 0);
+            }
+
+            // 5. Create NEW attempt for TIE_BREAKER
             const { data: attempt, error } = await supabase
                 .from('attempts')
                 .insert({
@@ -71,8 +100,9 @@ const TieBreakerStart = () => {
                     status: 'IN_PROGRESS',
                     meta_json: {
                         tied_types: tiedTypes,
+                        iteration: currentIteration,
                         question_order: questions.map(q => q.id).sort(() => Math.random() - 0.5),
-                        phrase_seeds: questions.map(() => Math.random() > 0.5 ? 1 : 0) // Select 01 or 02 suffix randomly para todas as questões (agora 7)
+                        phrase_seeds: phraseSeeds
                     }
                 })
                 .select()

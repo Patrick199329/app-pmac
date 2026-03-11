@@ -16,8 +16,9 @@ O status de **EMPATE** (`TIE`) é declarado para disparar o questionário de des
     - *Nota*: Por solicitação do cliente, a exclusão de perfis com poucos votos foi suspensa para evitar manipulação do resultado.
 
 ## 4. Inconsistência (Rule 6)
-O status **INCONSISTENTE** é aplicado quando a distribuição é muito fragmentada, impedindo uma análise confiável:
-- Ocorre em qualquer caso que não se encaixe nas regras de Vitória ou Empate acima (ex: 2, 2, 2, 2, 1, 1).
+O status **INCONSISTENTE** foi simplificado para atender à demanda de inclusividade:
+- **Removida**: A regra de fragmentação (ex: 2, 2, 2, 2, 1, 1) agora é tratada como **EMPATE** (TIE) inclusivo.
+- **Mantida**: O status ocorre apenas em casos de erro técnico onde não há respostas válidas mapeadas para os tipos.
 
 ## 5. Travas de Reincidência (Regras D e E)
 - **Primeira Inconsistência**: O usuário é obrigado a assistir ao vídeo de **Instrução 2** antes de repetir o teste.
