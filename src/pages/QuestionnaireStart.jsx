@@ -131,18 +131,16 @@ const QuestionnaireStart = () => {
                 </div>
 
                 <div className="info-content">
-                    <div className="info-item">
-                        <Info size={20} />
-                        <p>{settings.basic_intro_item1}</p>
-                    </div>
-                    <div className="info-item">
-                        <Info size={20} />
-                        <p>{settings.basic_intro_item2}</p>
-                    </div>
-                    <div className="info-item">
-                        <Info size={20} />
-                        <p>{settings.basic_intro_item3}</p>
-                    </div>
+                    {[
+                        settings.basic_intro_item1,
+                        settings.basic_intro_item2,
+                        settings.basic_intro_item3
+                    ].filter(Boolean).map((item, idx) => (
+                        <div key={idx} className="info-item">
+                            <Info size={20} />
+                            <p>{item}</p>
+                        </div>
+                    ))}
                 </div>
 
                 <button

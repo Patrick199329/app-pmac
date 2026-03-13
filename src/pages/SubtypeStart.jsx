@@ -85,8 +85,12 @@ const SubtypeStart = () => {
                     <div>
                         <p>{settings.subtype_intro_text}</p>
                         <ul className="rules-summary">
-                            <li>{settings.subtype_intro_item1}</li>
-                            <li>{settings.subtype_intro_item2}</li>
+                            {[
+                                settings.subtype_intro_item1,
+                                settings.subtype_intro_item2
+                            ].filter(Boolean).map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                            ))}
                         </ul>
                     </div>
                 </div>
