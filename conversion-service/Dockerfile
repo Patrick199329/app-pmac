@@ -9,7 +9,9 @@ RUN apt-get update && apt-get install -y \
     fonts-freefont-ttf \
     fonts-crosextra-carlito \
     fonts-crosextra-caladea \
+    fontconfig \
     locales \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up Portuguese locale
