@@ -205,6 +205,11 @@ const QuestionnaireStart = () => {
                     line-height: 1.6;
                     align-items: flex-start;
                 }
+                .info-item p {
+                    white-space: pre-wrap;
+                    margin: 0;
+                    width: 100%;
+                }
                 .info-item svg {
                     flex-shrink: 0;
                     margin-top: 0.25rem;

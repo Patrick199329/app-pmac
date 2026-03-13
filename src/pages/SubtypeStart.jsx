@@ -160,6 +160,7 @@ const SubtypeStart = () => {
                     font-size: 1rem;
                     line-height: 1.6;
                     color: var(--text-secondary);
+                    white-space: pre-wrap;
                 }
                 .rules-summary {
                     margin-top: 1rem;
