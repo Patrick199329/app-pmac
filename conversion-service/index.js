@@ -30,19 +30,42 @@ app.post('/convert', upload.single('file'), (req, res) => {
 
     try {
         const username = (req.body.username || 'Usuário').trim();
-        const docxBuffer = req.file.buffer;
+        const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
+
+        console.log(`[${new Date().toISOString()}] Processing for: ${username}, Date: ${currentDate} (Source: ${req.body.currentDate ? 'Request' : 'Fallback'})`);
 
         // 1. Load the docx file as zip
-        const zip = new PizZip(docxBuffer);
+        const zip = new PizZip(req.file.buffer);
 
-        // 2. Initialize docxtemplater with custom delimiters to support [NOME] and {NOME}
+        // 2. Pre-process XML: normalize [PLACEHOLDER] -> {PLACEHOLDER} so we only need ONE pass.
+        //    This avoids the two-pass approach that causes blank pages in LibreOffice.
+        const xmlFiles = [
+            'word/document.xml',
+            'word/header1.xml',
+            'word/header2.xml',
+            'word/header3.xml',
+            'word/footer1.xml',
+            'word/footer2.xml',
+            'word/footer3.xml',
+        ];
+
+        xmlFiles.forEach(filename => {
+            const file = zip.file(filename);
+            if (!file) return;
+            let content = file.asText();
+            // Replace [PLACEHOLDER] with {PLACEHOLDER}, but only outside XML tags
+            // The regex matches [WORD] where WORD is alphanumeric/underscore characters
+            content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
+            zip.file(filename, content);
+        });
+
+        // 3. Single-pass with docxtemplater using standard {PLACEHOLDER} delimiters.
+        //    paragraphLoop is intentionally disabled — templates do not use loops,
+        //    and enabling it was the primary cause of extra blank pages.
         const doc = new Docxtemplater(zip, {
-            paragraphLoop: true,
             linebreaks: true,
         });
 
-        // 3. Replace placeholders
-        const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
         const data = {
             NOME: username,
             nome: username.toLowerCase(),
@@ -51,34 +74,18 @@ app.post('/convert', upload.single('file'), (req, res) => {
             data: currentDate,
             Data: currentDate,
             DATE: currentDate,
-            date: currentDate
+            date: currentDate,
         };
 
-        console.log(`[${new Date().toISOString()}] Processing for: ${username}, Date: ${currentDate} (Source: ${req.body.currentDate ? 'Request' : 'Fallback'})`);
         doc.render(data);
 
-        // 4. Get the intermediate buffer
-        const intermediateBuffer = doc.getZip().generate({
-            type: "nodebuffer",
-            compression: "DEFLATE",
+        // 4. Get the final modified buffer
+        const modifiedDocxBuffer = doc.getZip().generate({
+            type: 'nodebuffer',
+            compression: 'DEFLATE',
         });
 
-        // 5. Second pass for [ ] delimiters
-        const zip2 = new PizZip(intermediateBuffer);
-        const doc2 = new Docxtemplater(zip2, {
-            paragraphLoop: true,
-            linebreaks: true,
-            delimiters: { start: '[', end: ']' }
-        });
-        doc2.render(data);
-
-        // 6. Get the final modified buffer
-        const modifiedDocxBuffer = doc2.getZip().generate({
-            type: "nodebuffer",
-            compression: "DEFLATE",
-        });
-
-        // 7. Convert to PDF
+        // 5. Convert to PDF
         libre.convert(modifiedDocxBuffer, '.pdf', undefined, (err, pdfBuffer) => {
             if (err) {
                 console.error(`Error converting file: ${err}`);
