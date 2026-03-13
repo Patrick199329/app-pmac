@@ -7,7 +7,6 @@
         "libreoffice-convert": "^1.4.1",
         "multer": "^1.4.5-lts.1",
         "docxtemplater": "^3.42.0",
-        "pizzip": "^3.1.4",
-        "pdf-lib": "^1.17.1"
+        "pizzip": "^3.1.4"
     }
 }
