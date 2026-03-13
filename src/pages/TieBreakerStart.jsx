@@ -51,61 +51,65 @@ const TieBreakerStart = () => {
         const { data: { user } } = await supabase.auth.getUser();
 
         try {
-            // 1. Determine Iteration
+            // 1. Determine Iteration and Question Limit
             const prevIteration = previousAttempt?.kind === 'TIE_BREAKER' 
                 ? (previousAttempt.meta_json?.iteration || 1) 
                 : 0;
             const currentIteration = prevIteration + 1;
+            const maxQuestions = tiedTypes.length === 2 ? 5 : 7;
 
-            // 2. Fetch DE Question Set
-            const { data: qSet } = await supabase
-                .from('question_sets')
-                .select('id')
-                .eq('key', 'TIE_BREAKER')
-                .single();
-
-            // 3. Fetch DE questions
-            let questionsQuery;
+            // 2. Fetch Question IDs
+            let questions;
             
             if (currentIteration >= 3) {
-                // Rule: 3rd iteration onwards uses questions flagged for it
-                questionsQuery = supabase
-                    .from('questions')
-                    .select('id, order_index')
-                    .eq('use_in_3rd_round_tiebreaker', true)
-                    .limit(7); // Limit as a safety measure but usually and configured by user
-            } else {
-                questionsQuery = supabase
-                    .from('questions')
-                    .select('id, order_index')
-                    .eq('question_set_id', qSet.id)
-                    .order('order_index', { ascending: true });
-            }
+                // Rule: 3rd iteration onwards uses BASIC set questions flagged for it
+                const { data: qSetBasic } = await supabase
+                    .from('question_sets')
+                    .select('id')
+                    .eq('key', 'BASIC')
+                    .single();
 
-            let { data: questions } = await questionsQuery;
+                const { data: qBasic } = await supabase
+                    .from('questions')
+                    .select('id, order_index')
+                    .eq('question_set_id', qSetBasic.id)
+                    .eq('use_in_3rd_round_tiebreaker', true)
+                    .limit(maxQuestions);
+                
+                questions = qBasic;
+            } else {
+                // Iterations 1 & 2 use TIE_BREAKER set
+                const { data: qSetDE } = await supabase
+                    .from('question_sets')
+                    .select('id')
+                    .eq('key', 'TIE_BREAKER')
+                    .single();
+
+                const { data: qDE } = await supabase
+                    .from('questions')
+                    .select('id, order_index')
+                    .eq('question_set_id', qSetDE.id)
+                    .order('order_index', { ascending: true })
+                    .limit(maxQuestions);
+                
+                questions = qDE;
+            }
 
             if (!questions || questions.length === 0) {
-                // Fallback to original set if no flagged questions found
-                const { data: fallbackQs } = await supabase
-                    .from('questions')
-                    .select('id, order_index')
-                    .eq('question_set_id', qSet.id)
-                    .order('order_index', { ascending: true })
-                    .limit(5);
-                questions = fallbackQs;
+                throw new Error("Não foi possível carregar as questões de desempate.");
             }
 
-            // 4. Define Phrase Seeds (Variants)
+            // 3. Define Phrase Seeds (Variants)
             // Iteration 1: All '0' (Suffix 01)
             // Iteration 2: All '1' (Suffix 02)
-            // Iteration 3+: Random (0 or 1)
+            // Iteration 3+: Suffix 01 (Seed 0) for BASIC consistency
             let phraseSeeds;
             if (currentIteration === 1) {
                 phraseSeeds = questions.map(() => 0);
             } else if (currentIteration === 2) {
                 phraseSeeds = questions.map(() => 1);
             } else {
-                phraseSeeds = questions.map(() => Math.random() > 0.5 ? 1 : 0);
+                phraseSeeds = questions.map(() => 0); 
             }
 
             // 5. Create NEW attempt for TIE_BREAKER

@@ -129,11 +129,11 @@ const TieBreakerEngine = () => {
     return (
         <div className="engine-container fade-in">
             <div className="progress-header">
-                <div className="step-info">Questão {currentStep + 1} de {attemptMeta?.question_order?.length || 7}</div>
+                <div className="step-info">Questão {currentStep + 1} de {attemptMeta?.question_order?.length}</div>
                 <div className="progress-bar-bg">
                     <div
                         className="progress-bar-fill"
-                        style={{ width: `${((currentStep + 1) / (attemptMeta?.question_order?.length || 7)) * 100}%` }}
+                        style={{ width: `${((currentStep + 1) / (attemptMeta?.question_order?.length)) * 100}%` }}
                     ></div>
                 </div>
             </div>
