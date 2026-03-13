@@ -42,7 +42,7 @@ app.post('/convert', upload.single('file'), (req, res) => {
         });
 
         // 3. Replace placeholders
-        const currentDate = new Date().toLocaleDateString('pt-BR');
+        const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
         const data = {
             NOME: username,
             nome: username.toLowerCase(),
@@ -54,7 +54,7 @@ app.post('/convert', upload.single('file'), (req, res) => {
             date: currentDate
         };
 
-        console.log(`[${new Date().toISOString()}] Processing for: ${username}, Date: ${currentDate}`);
+        console.log(`[${new Date().toISOString()}] Processing for: ${username}, Date: ${currentDate} (Source: ${req.body.currentDate ? 'Request' : 'Fallback'})`);
         doc.render(data);
 
         // 4. Get the intermediate buffer

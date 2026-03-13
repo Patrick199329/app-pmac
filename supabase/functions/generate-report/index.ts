@@ -106,14 +106,23 @@ Deno.serve(async (req: Request) => {
         const { data: profile } = await supabase.from('profiles').select('name').eq('id', finalUserId).single();
         const username = profile?.name || 'Usuário';
 
+        // 5.5 Geração da Data Atual (pt-BR)
+        const currentDate = new Date().toLocaleDateString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+
         const converterUrl = Deno.env.get('INTERNAL_CONVERTER_URL');
         const converterToken = Deno.env.get('INTERNAL_CONVERTER_TOKEN');
 
-        console.log("DEBUG: Enviando ao conversor...");
+        console.log(`DEBUG: Enviando ao conversor (Data: ${currentDate})...`);
         const formData = new FormData();
         const docxBuffer = await docxData.arrayBuffer();
         formData.append('file', new Blob([docxBuffer]), 'report.docx');
         formData.append('username', username);
+        formData.append('currentDate', currentDate);
 
         const convResponse = await fetch(`${converterUrl}/convert`, {
             method: 'POST',
