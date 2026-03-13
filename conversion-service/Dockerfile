@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     fonts-liberation \
     fonts-dejavu \
     fonts-freefont-ttf \
+    fonts-crosextra-carlito \
+    fonts-crosextra-caladea \
     locales \
     && rm -rf /var/lib/apt/lists/*
 

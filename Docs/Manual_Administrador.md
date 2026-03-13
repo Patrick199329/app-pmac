@@ -20,7 +20,9 @@ No topo da página, existem duas abas:
 ### Editar Pergunta Existente
 1. Localize a pergunta na lista e clique no ícone de **Lápis (Editar)**.
 2. Altere o texto do enunciado ou das opções. No caso do desempate, o sistema exibe o código (ex: `T1DE...01` e `T1DE...02`) para identificar qual das duas frases do Tipo 1 você está editando.
-3. Clique em **Salvar Pergunta**.
+3. **Rodadas Avançadas**: Se desejar que esta pergunta seja reutilizada em desempates longos, marque o campo **"Repetir a partir do 3º desempate"**.
+    - *Dica*: Recomenda-se marcar as perguntas do set **Básico** para diversificar o banco a partir da 3ª rodada.
+4. Clique em **Salvar Pergunta**.
 
 ## 4. Importância dos Códigos
 Os códigos das opções (T1, T2...) não devem ser alterados manualmente, pois o motor de desempate utiliza o sufixo final (`01` ou `02`) para realizar o sorteio aleatório das frases. Se você alterar a estrutura do código, o filtro dinâmico pode falhar.

@@ -21,6 +21,7 @@ As perguntas do sistema.
 - `question_set_id`: FK para question_sets
 - `text`: O enunciado
 - `order_index`: Ordem de exibição (1-10)
+- `use_in_3rd_round_tiebreaker`: Booleano que define se a questão será reutilizada em rodadas avançadas de empate (Rodada 3+).
 
 ### `options`
 As alternativas de resposta.

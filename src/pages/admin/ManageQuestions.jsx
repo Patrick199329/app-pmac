@@ -63,10 +63,12 @@ const ManageQuestions = () => {
 
   // Form State
   const [qText, setQText] = useState('');
+  const [useIn3rdRound, setUseIn3rdRound] = useState(false);
   const [options, setOptions] = useState([]);
 
   const resetForm = () => {
     setQText('');
+    setUseIn3rdRound(false);
     if (selectedSet === 'BASIC') {
       setOptions(Array.from({ length: 9 }, (_, i) => ({
         code: `T${i + 1}`,
@@ -111,7 +113,10 @@ const ManageQuestions = () => {
     try {
       if (editingQuestion) {
         // Update
-        await supabase.from('questions').update({ text: qText }).eq('id', editingQuestion.id);
+        await supabase.from('questions').update({ 
+          text: qText,
+          use_in_3rd_round_tiebreaker: useIn3rdRound
+        }).eq('id', editingQuestion.id);
 
         // Update options
         for (const opt of options) {
@@ -128,7 +133,8 @@ const ManageQuestions = () => {
           .insert([{
             question_set_id: qSet.id,
             text: qText,
-            order_index: questions.length
+            order_index: questions.length,
+            use_in_3rd_round_tiebreaker: useIn3rdRound
           }])
           .select()
           .single();
@@ -157,6 +163,7 @@ const ManageQuestions = () => {
   const startEdit = (q) => {
     setEditingQuestion(q);
     setQText(q.text);
+    setUseIn3rdRound(q.use_in_3rd_round_tiebreaker || false);
     // Sort options by score_type to keep consistent
     const sortedOpts = [...q.options].sort((a, b) => a.score_type - b.score_type);
     setOptions(sortedOpts);
@@ -242,7 +249,12 @@ const ManageQuestions = () => {
               <div key={q.id} className="question-item glass-panel">
                 <div className="q-info">
                   <span className="q-index">#{idx + 1}</span>
-                  <p>{q.text}</p>
+                  <div className="q-content-text">
+                    <p>{q.text}</p>
+                    {q.use_in_3rd_round_tiebreaker && (
+                      <span className="de-flag-pill">Repetir a partir do 3º desempate</span>
+                    )}
+                  </div>
                 </div>
                 <div className="q-actions">
                   <button className="icon-btn edit" onClick={() => startEdit(q)} title="Editar">
@@ -275,6 +287,18 @@ const ManageQuestions = () => {
                   onChange={(e) => setQText(e.target.value)}
                   placeholder="Ex: Como você se comporta sob estresse?"
                 />
+              </div>
+
+              <div className="input-group checkbox-group">
+                <label className="checkbox-container">
+                  <input
+                    type="checkbox"
+                    checked={useIn3rdRound}
+                    onChange={(e) => setUseIn3rdRound(e.target.checked)}
+                  />
+                  <span className="checkmark"></span>
+                  <span className="label-text">Repetir a partir do 3º desempate</span>
+                </label>
               </div>
 
               <div className="options-editor">
@@ -719,6 +743,88 @@ const ManageQuestions = () => {
           .sets-sidebar { position: static; height: auto; }
           .options-grid-admin { grid-template-columns: 1fr; }
         }
+
+        /* Checkbox & Pill Styles */
+        .checkbox-group { 
+          margin: 1.5rem 0;
+          padding: 0 0.5rem;
+        }
+        .checkbox-container.checkbox-container {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: 1.25rem !important;
+          cursor: pointer;
+          user-select: none;
+          padding: 0;
+          margin: 0;
+          text-transform: none;
+        }
+        .checkbox-container input { 
+          position: absolute;
+          opacity: 0;
+          cursor: pointer;
+          height: 0;
+          width: 0;
+        }
+        .checkmark {
+          width: 24px;
+          height: 24px;
+          background: var(--bg-tertiary);
+          border: 2px solid var(--glass-border);
+          border-radius: 6px;
+          position: relative;
+          transition: all 0.2s;
+          flex-shrink: 0;
+          display: block;
+        }
+        .checkbox-container:hover .checkmark {
+          border-color: var(--accent-primary);
+          background: rgba(139, 92, 246, 0.05);
+        }
+        .checkbox-container input:checked + .checkmark {
+          background: var(--accent-primary);
+          border-color: var(--accent-primary);
+          box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
+        }
+        .checkmark:after {
+          content: "";
+          position: absolute;
+          display: none;
+          left: 8px;
+          top: 4px;
+          width: 6px;
+          height: 11px;
+          border: solid white;
+          border-width: 0 2.5px 2.5px 0;
+          transform: rotate(45deg);
+        }
+        .checkbox-container input:checked + .checkmark:after { 
+          display: block; 
+        }
+        .label-text { 
+          font-weight: 700; 
+          color: var(--text-primary); 
+          font-size: 1.05rem;
+          letter-spacing: 0.02em;
+          text-transform: none !important;
+        }
+
+        .de-flag-pill {
+          display: flex;
+          align-items: center;
+          width: fit-content;
+          padding: 0.25rem 0.75rem;
+          background: rgba(139, 92, 246, 0.1);
+          border: 1px solid rgba(139, 92, 246, 0.2);
+          color: var(--accent-primary);
+          font-size: 0.75rem;
+          font-weight: 700;
+          border-radius: 3rem;
+          margin-top: 0.5rem;
+          text-transform: uppercase;
+        }
+        .q-content-text { flex: 1; display: flex; flex-direction: column; }
       `}} />
     </div>
   );

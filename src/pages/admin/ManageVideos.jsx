@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
-import { PlayCircle, Save, Loader2, Link as LinkIcon, AlertCircle, Video } from 'lucide-react';
+import { PlayCircle, Save, Loader2, Link as LinkIcon, AlertCircle, Video, Upload, Trash2 } from 'lucide-react';
 import LoadingOverlay from '../../components/LoadingOverlay';
 
 const ManageVideos = () => {
     const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saveLoading, setSaveLoading] = useState({});
+    const [uploadLoading, setUploadLoading] = useState({});
     const [messages, setMessages] = useState({});
 
     useEffect(() => {
@@ -55,6 +56,51 @@ const ManageVideos = () => {
         setSaveLoading(prev => ({ ...prev, [key]: false }));
     };
 
+    const handleFileUpload = async (key, file) => {
+        if (!file) return;
+        
+        // Validation
+        const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+        if (!allowedTypes.includes(file.type)) {
+            setMessages(prev => ({ ...prev, [key]: { type: 'error', text: 'Formato inválido (Use MP4/MOV).' } }));
+            return;
+        }
+
+        if (file.size > 500 * 1024 * 1024) { // 500MB limit
+            setMessages(prev => ({ ...prev, [key]: { type: 'error', text: 'Arquivo muito grande (Máx 500MB).' } }));
+            return;
+        }
+
+        setUploadLoading(prev => ({ ...prev, [key]: true }));
+        
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${key}_${Date.now()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('video-files')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('video-files')
+                .getPublicUrl(filePath);
+
+            // Update state and save
+            handleUrlChange(key, publicUrl);
+            await handleSave(key, publicUrl);
+            
+            setMessages(prev => ({ ...prev, [key]: { type: 'success', text: 'Upload concluído!' } }));
+        } catch (error) {
+            console.error('Upload error:', error);
+            setMessages(prev => ({ ...prev, [key]: { type: 'error', text: `Erro: ${error.message || 'Falha no upload'}` } }));
+        } finally {
+            setUploadLoading(prev => ({ ...prev, [key]: false }));
+        }
+    };
+
     if (loading) return <LoadingOverlay message="Carregando Vídeos" subtitle="Recuperando links de instrução..." />;
 
     return (
@@ -84,30 +130,51 @@ const ManageVideos = () => {
                         </p>
 
                         <div className="input-group">
-                            <label><LinkIcon size={14} /> Link do Vídeo</label>
-                            <input
-                                type="text"
-                                placeholder="https://www.youtube.com/watch?v=..."
-                                value={vid.url}
-                                onChange={(e) => handleUrlChange(vid.key, e.target.value)}
-                            />
+                            <label><LinkIcon size={14} /> Link ou Arquivo do Vídeo</label>
+                            <div className="input-with-upload">
+                                <input
+                                    type="text"
+                                    placeholder="https://www.youtube.com/watch?v=..."
+                                    value={vid.url}
+                                    onChange={(e) => handleUrlChange(vid.key, e.target.value)}
+                                />
+                                <label className="upload-icon-btn" title="Upload de Arquivo">
+                                    <input 
+                                        type="file" 
+                                        accept="video/*" 
+                                        onChange={(e) => handleFileUpload(vid.key, e.target.files[0])}
+                                        style={{ display: 'none' }}
+                                    />
+                                    {uploadLoading[vid.key] ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+                                </label>
+                            </div>
                         </div>
 
                         {vid.url && (
                             <div className="admin-video-preview">
-                                <iframe
-                                    width="100%"
-                                    height="200"
-                                    src={vid.url.includes('youtube.com/watch?v=')
-                                        ? vid.url.replace('watch?v=', 'embed/')
-                                        : vid.url.includes('youtu.be/')
-                                            ? `https://www.youtube.com/embed/${vid.url.split('youtu.be/')[1]}`
-                                            : ''}
-                                    title="Video Preview"
-                                    frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                ></iframe>
+                                {vid.url.includes('youtube.com') || vid.url.includes('youtu.be') ? (
+                                    <iframe
+                                        width="100%"
+                                        height="200"
+                                        src={vid.url.includes('youtube.com/watch?v=')
+                                            ? vid.url.replace('watch?v=', 'embed/')
+                                            : vid.url.includes('youtu.be/')
+                                                ? `https://www.youtube.com/embed/${vid.url.split('youtu.be/')[1]}`
+                                                : ''}
+                                        title="Video Preview"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    ></iframe>
+                                ) : (
+                                    <video 
+                                        src={vid.url} 
+                                        controls 
+                                        width="100%" 
+                                        height="200"
+                                        className="preview-video-element"
+                                    />
+                                )}
                             </div>
                         )}
 
@@ -214,6 +281,38 @@ const ManageVideos = () => {
           border-radius: 0.5rem;
           color: var(--text-primary);
           font-size: 0.9rem;
+        }
+
+        .input-with-upload {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .upload-icon-btn {
+          position: absolute;
+          right: 0.5rem;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(139, 92, 246, 0.1);
+          color: var(--accent-primary);
+          border-radius: 8px;
+          cursor: pointer;
+          transition: var(--transition-smooth);
+        }
+
+        .upload-icon-btn:hover {
+          background: var(--accent-primary);
+          color: white;
+        }
+
+        .preview-video-element {
+          border-radius: 8px;
+          background: black;
+          object-fit: contain;
         }
 
         .card-footer {

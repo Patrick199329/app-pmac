@@ -5,7 +5,7 @@ As melhorias para a personalização dos relatórios DOCX e a correção dos err
 ## Mudanças Realizadas
 
 ### 1. Edge Function (`generate-report`)
-- **Correção de CORS**: Suporte para o método `OPTIONS` e cabeçalhos de controle de acesso, resolvendo o erro de "preflight request".
+- **Placeholders**: Suporte para `[NOME]`, `{NOME}` e agora `[DATA]` (data atual no formato DD/MM/AAAA).
 - **Busca de Dados**: A função busca o nome do usuário na tabela `profiles`.
 - **Fluxo Completo**: Download do template, personalização via Railway, salvamento no bucket `reports` e retorno de Signed URL.
 

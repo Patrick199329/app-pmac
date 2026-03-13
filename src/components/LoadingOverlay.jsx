@@ -9,10 +9,6 @@ const LoadingOverlay = ({ message = 'Carregando...', subtitle = 'Por favor, agua
           <Loader2 className="spinner" size={64} />
           <div className="loading-ring"></div>
         </div>
-        <div className="loading-text">
-          <h3>{message}</h3>
-          <p>{subtitle}</p>
-        </div>
       </div>
       <style dangerouslySetInnerHTML={{
         __html: `

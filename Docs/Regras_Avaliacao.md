@@ -31,13 +31,18 @@ Quando o status **TIE** é atingido no questionário básico, o usuário é dire
 ### 6.1 Funcionamento do Motor DE
 - **Estrutura**: 7 perguntas fixas com opções dinâmicas (expandido de 5 para 7).
 - **Opções Dinâmicas**: O sistema filtra e exibe apenas as opções dos Tipos que estão em disputa no empate.
-- **Variedade de Frases**: Cada Tipo possui 2 opções de frase por pergunta. O motor sorteia aleatoriamente entre a versão '01' ou '02'.
-    - *Exceção*: Para as questões 6 e 7 (novas), como não há variantes distintas, a mesma pergunta é duplicada para manter a diversidade do algoritmo sem risco à mecânica original.
-- **Ordem**: Tanto as 7 perguntas quanto as opções dentro delas são exibidas em ordem aleatória.
+- **Variedade de Frases (Rodadas 1 e 2)**: Cada Tipo possui 2 opções de frase por pergunta no banco de desempate. O motor sorteia aleatoriamente entre a versão '01' ou '02'.
+- **Repetição de Questões (Rodada 3+)**: A partir da 3ª iteração do desempate, o sistema transita automaticamente para um banco de reutilização.
+    - O motor busca apenas as perguntas que foram marcadas com o flag **"Repetir a partir do 3º desempate"** no painel administrativo.
+    - Isso permite que o cliente utilize perguntas do questionário básico ou de outros sets para evitar a fadiga do usuário com as frases do banco de desempate original.
+- **Ordem**: Tanto as perguntas quanto as opções dentro delas são exibidas em ordem aleatória para garantir a isenção do teste.
 
 ### 6.2 Vitória no Desempate (Regra 7)
-- O vencedor é definido quando um Tipo obtém uma quantidade de respostas **estritamente superior** a todos os demais tipos participantes do desempate.
-- Caso o empate persista após as 7 perguntas, o processo se repete (Regra 5a recorrente) até que um vencedor seja isolado.
+- **Vitória Direta**: O vencedor é definido quando um Tipo obtém uma quantidade de respostas **estritamente superior** a todos os demais tipos participantes do desempate.
+- **Regra de Exclusão (Melhoria de Fluxo)**: Caso o empate persista (empate no topo), o sistema analisa a distribuição dos votos para a próxima rodada:
+    - Tipos que obtiveram **menos de 2 pontos** (0 ou 1) são automaticamente **excluídos** das rodadas subsequentes.
+    - Se após esta exclusão restar apenas **um único Tipo** com 2 ou mais pontos, este é declarado o **Vencedor** imediatamente, sem necessidade de nova rodada.
+- **Repetição**: Caso o empate persista entre 2 ou mais tipos (ambos com 2 ou mais pontos), o processo se repete (Regra 5a recorrente) apenas com os tipos remanescentes até que um vencedor seja isolado.
 
 ### 7.1 Diferenciação de Jornada por Plano
 O fluxo após a definição do Tipo Base (ou conclusão do Desempate) depende do plano do usuário:

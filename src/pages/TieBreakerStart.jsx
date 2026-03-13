@@ -65,18 +65,35 @@ const TieBreakerStart = () => {
                 .single();
 
             // 3. Fetch DE questions
-            let questionsQuery = supabase
-                .from('questions')
-                .select('id, order_index')
-                .eq('question_set_id', qSet.id)
-                .order('order_index', { ascending: true });
+            let questionsQuery;
             
-            // Rule: 3rd iteration onwards uses only 5 questions
             if (currentIteration >= 3) {
-                questionsQuery = questionsQuery.limit(5);
+                // Rule: 3rd iteration onwards uses questions flagged for it
+                questionsQuery = supabase
+                    .from('questions')
+                    .select('id, order_index')
+                    .eq('use_in_3rd_round_tiebreaker', true)
+                    .limit(7); // Limit as a safety measure but usually and configured by user
+            } else {
+                questionsQuery = supabase
+                    .from('questions')
+                    .select('id, order_index')
+                    .eq('question_set_id', qSet.id)
+                    .order('order_index', { ascending: true });
             }
 
-            const { data: questions } = await questionsQuery;
+            let { data: questions } = await questionsQuery;
+
+            if (!questions || questions.length === 0) {
+                // Fallback to original set if no flagged questions found
+                const { data: fallbackQs } = await supabase
+                    .from('questions')
+                    .select('id, order_index')
+                    .eq('question_set_id', qSet.id)
+                    .order('order_index', { ascending: true })
+                    .limit(5);
+                questions = fallbackQs;
+            }
 
             // 4. Define Phrase Seeds (Variants)
             // Iteration 1: All '0' (Suffix 01)

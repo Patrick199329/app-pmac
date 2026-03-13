@@ -29,7 +29,7 @@ app.post('/convert', upload.single('file'), (req, res) => {
     }
 
     try {
-        const username = req.body.username || 'Usuário';
+        const username = (req.body.username || 'Usuário').trim();
         const docxBuffer = req.file.buffer;
 
         // 1. Load the docx file as zip
@@ -45,7 +45,9 @@ app.post('/convert', upload.single('file'), (req, res) => {
         const data = {
             NOME: username,
             nome: username.toLowerCase(),
-            NAME: username.toUpperCase()
+            NAME: username.toUpperCase(),
+            DATA: new Date().toLocaleDateString('pt-BR'),
+            data: new Date().toLocaleDateString('pt-BR')
         };
 
         doc.render(data);

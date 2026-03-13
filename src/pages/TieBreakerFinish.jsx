@@ -51,13 +51,31 @@ const TieBreakerFinish = () => {
                 let typeResult = null;
                 let winners = [];
 
+                // Standard victory condition: strictly superior
                 if (first && (!second || first.count > second.count)) {
                     finalStatus = 'DONE';
                     typeResult = first.type;
                     winners = [first.type];
                 } else {
-                    finalStatus = 'TIE';
-                    winners = sortedCounts.filter(item => item.count > 0).map(item => item.type);
+                    // NEW RULE: Exclusion of types with < 2 votes for the next round
+                    // This rule applies when there is a tie for first place
+                    const aboveThreshold = sortedCounts.filter(item => item.count >= 2);
+                    
+                    if (aboveThreshold.length === 1) {
+                        // If only one type has >= 2 votes, they win by exclusion
+                        finalStatus = 'DONE';
+                        typeResult = aboveThreshold[0].type;
+                        winners = [aboveThreshold[0].type];
+                    } else if (aboveThreshold.length > 1) {
+                        // Multiple types still in competition
+                        finalStatus = 'TIE';
+                        winners = aboveThreshold.map(item => item.type);
+                    } else {
+                        // Fallback: If no one has >= 2 votes (extreme fragmentation), 
+                        // keep all types that have at least 1 vote to avoid stopping the flow
+                        finalStatus = 'TIE';
+                        winners = sortedCounts.filter(item => item.count > 0).map(item => item.type);
+                    }
                 }
 
                 setResultData({ finalStatus, typeResult });

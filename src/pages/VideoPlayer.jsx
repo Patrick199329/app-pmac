@@ -22,9 +22,33 @@ const VideoPlayer = () => {
     }
   };
 
+  const isYouTube = (url) => {
+    return url.includes('youtube.com') || url.includes('youtu.be');
+  };
+
+  // Tracking for direct video anti-skip
+  const videoRef = React.useRef(null);
+  const [farthestTimeLocal, setFarthestTimeLocal] = useState(0);
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.currentTime > farthestTimeLocal + 2) {
+      video.currentTime = farthestTimeLocal;
+    } else {
+      setFarthestTimeLocal(Math.max(farthestTimeLocal, video.currentTime));
+    }
+
+    // Auto-complete if they reach the end correctly
+    if (video.currentTime >= video.duration - 2 && !completed) {
+      handleEnded();
+    }
+  };
+
   // YouTube IFrame API Handler
   useEffect(() => {
-    if (!videoUrl) return;
+    if (!videoUrl || !isYouTube(videoUrl)) return;
 
     const videoId = videoUrl.includes('v=')
       ? videoUrl.split('v=')[1].split('&')[0]
@@ -40,12 +64,9 @@ const VideoPlayer = () => {
           player = new window.YT.Player('youtube-player-iframe', {
             events: {
               'onStateChange': (event) => {
-                // When playing, monitor the time to prevent skipping
                 if (event.data === window.YT.PlayerState.PLAYING) {
                   checkInterval = setInterval(() => {
                     const currentTime = player.getCurrentTime();
-
-                    // Rule: If user seeks more than 2 seconds ahead of what they've seen, pull them back
                     if (currentTime > farthestTime + 2) {
                       player.seekTo(farthestTime, true);
                     } else {
@@ -57,12 +78,10 @@ const VideoPlayer = () => {
                 }
 
                 if (event.data === window.YT.PlayerState.ENDED) {
-                  // Final check: did they actually watch most of it?
                   const duration = player.getDuration();
                   if (farthestTime >= duration - 3) {
                     handleEnded();
                   } else {
-                    // They tried to trick the system by jumping to the very end
                     player.seekTo(farthestTime, true);
                     player.playVideo();
                   }
@@ -182,7 +201,7 @@ const VideoPlayer = () => {
         </p>
 
         <div className="player-wrapper" key={videoUrl}>
-          {getVideoId() ? (
+          {isYouTube(videoUrl) ? (
             <iframe
               id="youtube-player-iframe"
               width="100%"
@@ -193,6 +212,17 @@ const VideoPlayer = () => {
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             ></iframe>
+          ) : videoUrl ? (
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className="direct-video-player"
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleEnded}
+              controls
+              onContextMenu={(e) => e.preventDefault()}
+              controlsList="nodownload"
+            />
           ) : (
             <div className="player-loading">
               <Loader2 className="animate-spin" size={32} />
@@ -274,13 +304,18 @@ const VideoPlayer = () => {
           border: 1px solid var(--glass-border);
         }
 
-        .player-wrapper iframe {
+        .player-wrapper iframe, .direct-video-player {
           position: absolute;
           top: 0;
           left: 0;
           width: 100%;
           height: 100%;
           border: none;
+        }
+
+        .direct-video-player {
+          background: black;
+          object-fit: contain;
         }
 
         .player-error, .player-error-overlay, .player-loading {
