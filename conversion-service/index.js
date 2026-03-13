@@ -24,51 +24,75 @@ app.use((req, res, next) => {
 });
 
 /**
- * Pre-processes DOCX XML to:
- * 1. Normalize [PLACEHOLDER] -> {PLACEHOLDER} (for docxtemplater single-pass)
- * 2. Replace non-Calibri fonts (Trebuchet MS, Times New Roman) with Calibri
- * 3. Fix section break types: oddPage/evenPage -> nextPage
- *    LibreOffice inserts a compensatory blank page for odd/even section breaks,
- *    which is why the PDF has 2 extra pages. nextPage avoids this.
- * 4. Remove trailing empty paragraphs that LibreOffice renders as blank pages
+ * Pre-processes word/document.xml to eliminate the root causes of blank pages in LibreOffice.
+ *
+ * ROOT CAUSE: In DOCX, sections are delimited by <w:sectPr> inside an empty <w:p>.
+ * That empty paragraph is purely structural in Word (invisible). LibreOffice, however,
+ * renders each of those paragraphs as a full blank page with the header/footer of its section.
+ *
+ * STRATEGY:
+ * 1. Remove <w:p> elements that have <w:sectPr> but NO <w:r> content runs — these are the
+ *    "ghost" section-delimiter paragraphs that LibreOffice turns into blank pages.
+ *    NOTE: The final <w:sectPr> that is a direct child of <w:body> (not inside <w:p>) is
+ *    the document's main section and must never be touched.
+ * 2. Normalize [PLACEHOLDER] → {PLACEHOLDER} for single-pass docxtemplater.
+ * 3. Replace non-Calibri fonts with Calibri.
+ */
+function removeEmptySectionParagraphs(xmlContent) {
+    // This regex finds <w:p> elements (with optional attributes) that:
+    //   - may have a <w:pPr> block containing a <w:sectPr>
+    //   - do NOT have any <w:r> runs (actual content)
+    // We remove these paragraphs entirely. Their section properties are effectively
+    // absorbed by the surrounding document structure, which LibreOffice handles correctly.
+    //
+    // The regex is intentionally strict: it only matches when there is NO <w:r in the paragraph,
+    // ensuring we never accidentally remove paragraphs with real content.
+    let cleaned = xmlContent;
+    let previousLength;
+
+    // Iterate until no more changes (handles adjacent empty section paragraphs)
+    do {
+        previousLength = cleaned.length;
+        cleaned = cleaned.replace(
+            /<w:p(?:\s[^>]*)?>(?!\s*<w:r[\s>])(?:[^<]|<(?!\/w:p>))*?<w:sectPr>[\s\S]*?<\/w:sectPr>(?:[^<]|<(?!\/w:p>))*?<\/w:p>/g,
+            (match) => {
+                // Double-check: only remove if truly no content runs
+                if (/<w:r[\s>]/.test(match)) return match;
+                console.log(`[preprocessor] Removed empty section-break paragraph (${match.length} chars)`);
+                return '';
+            }
+        );
+    } while (cleaned.length !== previousLength);
+
+    return cleaned;
+}
+
+/**
+ * Full DOCX XML pre-processor:
+ * - Removes blank-page-causing empty paragraphs with section breaks
+ * - Normalizes [PLACEHOLDER] -> {PLACEHOLDER}
+ * - Replaces Trebuchet MS / Times New Roman with Calibri
  */
 function preprocessDocxXml(zip) {
-    // --- Process document.xml ---
+    // --- document.xml: full treatment ---
     const docFile = zip.file('word/document.xml');
     if (docFile) {
         let content = docFile.asText();
 
-        // 1. Normalize [PLACEHOLDER] -> {PLACEHOLDER}
+        // 1. Remove empty section-break paragraphs (root cause of blank pages)
+        content = removeEmptySectionParagraphs(content);
+
+        // 2. Normalize placeholders for single-pass docxtemplater
         content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
 
-        // 2. Font replacement: Trebuchet MS and Times New Roman -> Calibri
+        // 3. Font replacement
         content = content.replace(/Trebuchet MS/g, 'Calibri');
         content = content.replace(/Times New Roman/g, 'Calibri');
-
-        // 3. Fix section break types that cause LibreOffice to add blank pages:
-        //    oddPage and evenPage force content to start on odd/even page, inserting
-        //    a blank compensatory page. nextPage simply starts a new page without blank.
-        content = content.replace(
-            /(<w:type\s+w:val=")(?:oddPage|evenPage)(")/g,
-            '$1nextPage$2'
-        );
-
-        // 4. Remove sequences of empty paragraphs (no text runs) at the end of the body
-        //    These are the other common cause of extra blank pages in LibreOffice.
-        //    We target <w:p> elements that contain ONLY <w:pPr> (no <w:r> runs).
-        //    The regex is conservative: only strips truly empty paragraphs.
-        content = content.replace(
-            /(<w:p\b[^>]*>)\s*(<w:pPr>(?:(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?\s*(<\/w:p>\s*){2,}(<\/w:body>)/g,
-            (match, p1, p2, p3, closing) => {
-                // Keep just one trailing empty paragraph before </w:body>
-                return (p2 ? `${p1}${p2}</w:p>` : `${p1}</w:p>`) + closing;
-            }
-        );
 
         zip.file('word/document.xml', content);
     }
 
-    // --- Process headers and footers ---
+    // --- headers and footers: placeholder + font ---
     const auxFiles = [
         'word/header1.xml', 'word/header2.xml', 'word/header3.xml',
         'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml',
@@ -83,7 +107,7 @@ function preprocessDocxXml(zip) {
         zip.file(filename, content);
     });
 
-    // --- Process styles.xml (font replacement only) ---
+    // --- styles.xml: font replacement only ---
     const stylesFile = zip.file('word/styles.xml');
     if (stylesFile) {
         let stylesContent = stylesFile.asText();
@@ -107,11 +131,10 @@ app.post('/convert', upload.single('file'), (req, res) => {
         // 1. Load the docx file as zip
         const zip = new PizZip(req.file.buffer);
 
-        // 2. Pre-process DOCX XML (placeholders, fonts, section breaks, empty paragraphs)
+        // 2. Pre-process DOCX XML (remove blank pages, fix fonts, normalize placeholders)
         preprocessDocxXml(zip);
 
-        // 3. Single-pass docxtemplater render with standard {PLACEHOLDER} delimiters.
-        //    paragraphLoop intentionally disabled — template has no loop tags.
+        // 3. Single-pass docxtemplater render
         const doc = new Docxtemplater(zip, {
             linebreaks: true,
         });
