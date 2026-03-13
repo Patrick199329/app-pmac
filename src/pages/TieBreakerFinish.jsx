@@ -93,10 +93,23 @@ const TieBreakerFinish = () => {
                 // 5. Update DB
                 const { data: { user } } = await supabase.auth.getUser();
 
+                // Fetch current attempt to preserve iteration in meta_json
+                const { data: currentAttempt } = await supabase
+                    .from('attempts')
+                    .select('meta_json')
+                    .eq('id', attemptId)
+                    .single();
+
                 await supabase.from('attempts').update({
                     status: finalStatus,
                     finished_at: new Date().toISOString(),
-                    meta_json: { counts, winners, processed_at: new Date().toISOString(), distribution: sortedCounts }
+                    meta_json: { 
+                        ...(currentAttempt?.meta_json || {}),
+                        counts, 
+                        winners, 
+                        processed_at: new Date().toISOString(), 
+                        distribution: sortedCounts 
+                    }
                 }).eq('id', attemptId);
 
                 // 5a. Fetch active plan for redirection logic
