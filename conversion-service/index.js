@@ -29,17 +29,15 @@ function patchDocxXml(zip) {
     if (docFile) {
         let content = docFile.asText();
 
-        // 1. Normalize placeholders (user confirmed working)
+        // 1. Normalize placeholders
         content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
 
-        // 2. Font replacement (user confirmed working)
+        // 2. Font replacement
         content = content.replace(/Trebuchet MS/g, 'Calibri');
         content = content.replace(/Times New Roman/g, 'Calibri');
 
-        // 3. TARGETED BLANK PAGE FIX:
-        // LibreOffice inserts blank pages when it sees 'oddPage' or 'evenPage' section breaks.
-        // We change these to 'nextPage' WITHOUT deleting the paragraph.
-        // This preserves headers, footers, and background anchors.
+        // 3. TARGETED BLANK PAGE FIX (SAFE VERSION):
+        // Only changing section type, NOT deleting paragraphs.
         content = content.replace(/(<w:type\s+w:val=")(?:oddPage|evenPage)(")/g, '$1nextPage$2');
 
         zip.file('word/document.xml', content);
@@ -88,12 +86,12 @@ app.post('/convert', upload.single('file'), (req, res) => {
 
         const modifiedDocxBuffer = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 
-        // NO POST-PROCESSING on PDF. We trust LibreOffice with the patched XML.
         libre.convert(modifiedDocxBuffer, '.pdf', undefined, (err, pdfBuffer) => {
             if (err) return res.status(500).json({ error: 'Conversion failed' });
             
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', 'attachment; filename=output.pdf');
+            // Filename here is just a default, Edge function handles the real one
+            res.setHeader('Content-Disposition', 'attachment; filename=relatorio.pdf');
             res.send(pdfBuffer);
         });
     } catch (error) {

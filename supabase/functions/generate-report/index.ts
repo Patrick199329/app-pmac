@@ -137,7 +137,34 @@ Deno.serve(async (req: Request) => {
 
         const pdfBlob = await convResponse.blob();
 
-        // 6. Upload e Link Final
+        // 6. Nome Personalizado do Arquivo
+        const planDisplay = userPlan === 'OURO' ? 'Ouro' : 'Básica';
+        
+        // Mapeamento de Tipos
+        const typeMap: Record<string, string> = {
+            'T1': 'Perfeccionista',
+            'T2': 'Ajudador',
+            'T3': 'Realizador',
+            'T4': 'Emocional',
+            'T5': 'Analítico',
+            'T6': 'Questionador',
+            'T7': 'Entusiasta',
+            'T8': 'Dominador',
+            'T9': 'Mediador'
+        };
+
+        const baseTypeCode = subtypeCode.substring(0, 2); // Ex: T9A -> T9
+        let typeDisplay = typeMap[baseTypeCode] || subtypeCode;
+        
+        // Se for plano Ouro e tiver subtitulo (Subtipo), podemos tentar usar o nome do arquétipo se enviado
+        if (userPlan === 'OURO' && body.archetypeTitle) {
+            typeDisplay = body.archetypeTitle;
+        }
+
+        const safeUsername = username.replace(/[<>:"/\\|?*]/g, ''); // Limpar caracteres inválidos para Windows
+        const customFileName = `PMAC(R) ${planDisplay} - ${typeDisplay} - ${safeUsername}.pdf`;
+
+        // 7. Upload e Link Final
         const finalPath = `generated/${finalUserId}/${subtypeCode}_${userPlan}_${Date.now()}.pdf`;
         const { error: uploadError } = await supabase.storage.from('report-files').upload(finalPath, pdfBlob, {
             contentType: 'application/pdf',
@@ -147,12 +174,12 @@ Deno.serve(async (req: Request) => {
         if (uploadError) throw new Error(`Erro ao salvar PDF: ${uploadError.message}`);
 
         const { data: signedData, error: signedError } = await supabase.storage.from('report-files').createSignedUrl(finalPath, 3600, {
-            download: `${subtypeCode}_Relatorio.pdf`
+            download: customFileName
         });
         if (signedError) throw new Error(`Erro ao criar URL: ${signedError.message}`);
 
-        console.log("--- SUCESSO TOTAL ---");
-        return new Response(JSON.stringify({ url: signedData.signedUrl }), {
+        console.log(`--- SUCESSO TOTAL: ${customFileName} ---`);
+        return new Response(JSON.stringify({ url: signedData.signedUrl, fileName: customFileName }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 

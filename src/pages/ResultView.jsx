@@ -142,7 +142,8 @@ const ResultView = () => {
         body: JSON.stringify({
           subtypeCode,
           userPlan,
-          isBasic: userPlan === 'BASICO'
+          isBasic: userPlan === 'BASICO',
+          archetypeTitle: attempt.meta_json?.archetype_title
         })
       });
 
