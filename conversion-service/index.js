@@ -3,7 +3,6 @@ const multer = require('multer');
 const libre = require('libreoffice-convert');
 const PizZip = require('pizzip');
 const Docxtemplater = require('docxtemplater');
-const { PDFDocument } = require('pdf-lib');
 
 const app = express();
 const upload = multer({
@@ -25,127 +24,76 @@ app.use((req, res, next) => {
 });
 
 /**
- * Detects if a PDF page is blank by inspecting its content streams.
- * A page is considered blank if it has no content stream or the stream is effectively empty.
- */
-async function isPageBlank(pdfDoc, pageIndex) {
-    try {
-        const page = pdfDoc.getPage(pageIndex);
-        const { width, height } = page.getSize();
-
-        // Check for content streams - blank pages have none or empty ones
-        const pageDict = page.node;
-        const contents = pageDict.get(pdfDoc.context.obj('Contents'));
-        if (!contents) return true;
-
-        // Try to get content stream bytes
-        const contentStreams = [];
-        if (contents.constructor.name === 'PDFArray') {
-            for (let i = 0; i < contents.size(); i++) {
-                const ref = contents.get(i);
-                const stream = pdfDoc.context.lookup(ref);
-                if (stream && stream.constructor.name === 'PDFRawStream') {
-                    contentStreams.push(Buffer.from(stream.contents).toString('latin1'));
-                }
-            }
-        } else if (contents.constructor.name === 'PDFRawStream') {
-            contentStreams.push(Buffer.from(contents.contents).toString('latin1'));
-        } else {
-            // If indirectly referenced
-            const ref = contents;
-            const stream = pdfDoc.context.lookup(ref);
-            if (stream && stream.constructor.name === 'PDFRawStream') {
-                contentStreams.push(Buffer.from(stream.contents).toString('latin1'));
-            }
-        }
-
-        const combinedContent = contentStreams.join('').trim();
-
-        // PDF operators that draw content: Td, TD, Tj, TJ, ', ", cm, re, f, F, S, s, B, b, n, Do, RG, rg
-        // If there are no drawing operators, the page is blank
-        const hasContent = /[A-Za-z]/.test(combinedContent.replace(/^\s*$/, ''));
-        if (!hasContent) return true;
-
-        // More aggressive: check if any text or drawing commands exist
-        const drawingOps = /\b(Tj|TJ|'|"|cm|re\s+f|RG|rg|K|k|Do)\b/;
-        return !drawingOps.test(combinedContent);
-    } catch (e) {
-        // On error, assume it's not blank to be safe
-        return false;
-    }
-}
-
-/**
- * Removes blank pages from a PDF buffer.
- */
-async function removeBlankPages(pdfBuffer) {
-    const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
-    const pageCount = pdfDoc.getPageCount();
-    const blankIndices = [];
-
-    for (let i = 0; i < pageCount; i++) {
-        if (await isPageBlank(pdfDoc, i)) {
-            blankIndices.push(i);
-        }
-    }
-
-    if (blankIndices.length === 0) {
-        console.log(`[${new Date().toISOString()}] No blank pages found.`);
-        return pdfBuffer;
-    }
-
-    console.log(`[${new Date().toISOString()}] Removing ${blankIndices.length} blank page(s): [${blankIndices.map(i => i + 1).join(', ')}]`);
-
-    // Remove in reverse order so indices stay valid
-    for (let i = blankIndices.length - 1; i >= 0; i--) {
-        pdfDoc.removePage(blankIndices[i]);
-    }
-
-    return Buffer.from(await pdfDoc.save());
-}
-
-/**
  * Pre-processes DOCX XML to:
- * 1. Normalize [PLACEHOLDER] -> {PLACEHOLDER} (for docxtemplater)
- * 2. Replace Trebuchet MS font with Calibri (at 14pt for headings)
+ * 1. Normalize [PLACEHOLDER] -> {PLACEHOLDER} (for docxtemplater single-pass)
+ * 2. Replace non-Calibri fonts (Trebuchet MS, Times New Roman) with Calibri
+ * 3. Fix section break types: oddPage/evenPage -> nextPage
+ *    LibreOffice inserts a compensatory blank page for odd/even section breaks,
+ *    which is why the PDF has 2 extra pages. nextPage avoids this.
+ * 4. Remove trailing empty paragraphs that LibreOffice renders as blank pages
  */
 function preprocessDocxXml(zip) {
-    const xmlFiles = [
-        'word/document.xml',
-        'word/header1.xml', 'word/header2.xml', 'word/header3.xml',
-        'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml',
-    ];
+    // --- Process document.xml ---
+    const docFile = zip.file('word/document.xml');
+    if (docFile) {
+        let content = docFile.asText();
 
-    xmlFiles.forEach(filename => {
-        const file = zip.file(filename);
-        if (!file) return;
-        let content = file.asText();
-
-        // 1. Normalize [PLACEHOLDER] -> {PLACEHOLDER} for single-pass templating
+        // 1. Normalize [PLACEHOLDER] -> {PLACEHOLDER}
         content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
 
-        // 2. Replace Trebuchet MS (and common heading fonts) with Calibri
-        //    These appear in w:rFonts attributes
+        // 2. Font replacement: Trebuchet MS and Times New Roman -> Calibri
         content = content.replace(/Trebuchet MS/g, 'Calibri');
         content = content.replace(/Times New Roman/g, 'Calibri');
 
+        // 3. Fix section break types that cause LibreOffice to add blank pages:
+        //    oddPage and evenPage force content to start on odd/even page, inserting
+        //    a blank compensatory page. nextPage simply starts a new page without blank.
+        content = content.replace(
+            /(<w:type\s+w:val=")(?:oddPage|evenPage)(")/g,
+            '$1nextPage$2'
+        );
+
+        // 4. Remove sequences of empty paragraphs (no text runs) at the end of the body
+        //    These are the other common cause of extra blank pages in LibreOffice.
+        //    We target <w:p> elements that contain ONLY <w:pPr> (no <w:r> runs).
+        //    The regex is conservative: only strips truly empty paragraphs.
+        content = content.replace(
+            /(<w:p\b[^>]*>)\s*(<w:pPr>(?:(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?\s*(<\/w:p>\s*){2,}(<\/w:body>)/g,
+            (match, p1, p2, p3, closing) => {
+                // Keep just one trailing empty paragraph before </w:body>
+                return (p2 ? `${p1}${p2}</w:p>` : `${p1}</w:p>`) + closing;
+            }
+        );
+
+        zip.file('word/document.xml', content);
+    }
+
+    // --- Process headers and footers ---
+    const auxFiles = [
+        'word/header1.xml', 'word/header2.xml', 'word/header3.xml',
+        'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml',
+    ];
+    auxFiles.forEach(filename => {
+        const file = zip.file(filename);
+        if (!file) return;
+        let content = file.asText();
+        content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
+        content = content.replace(/Trebuchet MS/g, 'Calibri');
+        content = content.replace(/Times New Roman/g, 'Calibri');
         zip.file(filename, content);
     });
 
-    // 3. Fix heading font sizes in styles - ensure heading styles use Calibri 14pt (280 half-points)
+    // --- Process styles.xml (font replacement only) ---
     const stylesFile = zip.file('word/styles.xml');
     if (stylesFile) {
         let stylesContent = stylesFile.asText();
-
-        // Replace Trebuchet MS in styles with Calibri
         stylesContent = stylesContent.replace(/Trebuchet MS/g, 'Calibri');
         stylesContent = stylesContent.replace(/Times New Roman/g, 'Calibri');
-
         zip.file('word/styles.xml', stylesContent);
     }
 }
 
-app.post('/convert', upload.single('file'), async (req, res) => {
+app.post('/convert', upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -159,10 +107,11 @@ app.post('/convert', upload.single('file'), async (req, res) => {
         // 1. Load the docx file as zip
         const zip = new PizZip(req.file.buffer);
 
-        // 2. Pre-process DOCX XML (normalize placeholders + fix fonts)
+        // 2. Pre-process DOCX XML (placeholders, fonts, section breaks, empty paragraphs)
         preprocessDocxXml(zip);
 
-        // 3. Single-pass docxtemplater render with standard {PLACEHOLDER} delimiters
+        // 3. Single-pass docxtemplater render with standard {PLACEHOLDER} delimiters.
+        //    paragraphLoop intentionally disabled — template has no loop tags.
         const doc = new Docxtemplater(zip, {
             linebreaks: true,
         });
@@ -187,27 +136,15 @@ app.post('/convert', upload.single('file'), async (req, res) => {
         });
 
         // 5. Convert DOCX -> PDF via LibreOffice
-        libre.convert(modifiedDocxBuffer, '.pdf', undefined, async (err, pdfBuffer) => {
+        libre.convert(modifiedDocxBuffer, '.pdf', undefined, (err, pdfBuffer) => {
             if (err) {
                 console.error(`Error converting file: ${err}`);
                 return res.status(500).json({ error: 'Conversion failed' });
             }
 
-            try {
-                // 6. Post-process PDF: remove blank pages introduced by LibreOffice
-                const cleanedPdfBuffer = await removeBlankPages(pdfBuffer);
-                console.log(`[${new Date().toISOString()}] PDF ready. Pages: ${(await PDFDocument.load(cleanedPdfBuffer)).getPageCount()}`);
-
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', 'attachment; filename=output.pdf');
-                res.send(cleanedPdfBuffer);
-            } catch (postErr) {
-                console.error(`Error post-processing PDF: ${postErr}`);
-                // Fall back to sending the original PDF if post-processing fails
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', 'attachment; filename=output.pdf');
-                res.send(pdfBuffer);
-            }
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'attachment; filename=output.pdf');
+            res.send(pdfBuffer);
         });
     } catch (error) {
         console.error(`Error processing document: ${error}`);
