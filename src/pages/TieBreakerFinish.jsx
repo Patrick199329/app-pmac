@@ -28,7 +28,7 @@ const TieBreakerFinish = () => {
                     .from('answers')
                     .select(`
                         option_id,
-                        options (score_type)
+                        options (score_type, code)
                     `)
                     .eq('attempt_id', attemptId);
 
@@ -36,7 +36,14 @@ const TieBreakerFinish = () => {
 
                 const counts = {};
                 answers.forEach(ans => {
-                    const type = ans.options?.score_type;
+                    let type = ans.options?.score_type;
+                    
+                    // Fallback to infer type from code (e.g., T1..., ST1...)
+                    if (!type && ans.options?.code) {
+                        const match = ans.options.code.match(/^(?:T|ST)(\d)/);
+                        if (match) type = parseInt(match[1]);
+                    }
+                    
                     if (type) counts[type] = (counts[type] || 0) + 1;
                 });
 

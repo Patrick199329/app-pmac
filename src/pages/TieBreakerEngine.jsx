@@ -58,12 +58,29 @@ const TieBreakerEngine = () => {
                     .select('*')
                     .eq('question_id', qId);
 
-                const filteredOptions = allOptions
-                    .filter(opt =>
-                        attempt.meta_json.tied_types.includes(opt.score_type) &&
-                        opt.code.endsWith(suffix)
-                    )
-                    .sort(() => Math.random() - 0.5);
+                const filteredOptions = [];
+                for (const type of attempt.meta_json.tied_types) {
+                    const typeOptions = allOptions.filter(o => {
+                        const scoreTypeMatches = o.score_type == type;
+                        const codeMatches = o.code && (o.code.startsWith('T' + type) || o.code.startsWith('ST' + type));
+                        return scoreTypeMatches || codeMatches;
+                    });
+                    if (typeOptions.length > 0) {
+                        // Priority 1: match the standard tie-breaker variant suffix ('01' or '02')
+                        let pickedOpt = typeOptions.find(o => o.code && o.code.endsWith(suffix));
+                        
+                        // Priority 2: if no suffix match (e.g., in basic questions where suffixes vary), pick one deterministically
+                        if (!pickedOpt) {
+                            pickedOpt = typeOptions[phraseSeed % typeOptions.length];
+                        }
+                        
+                        if (pickedOpt) {
+                            filteredOptions.push(pickedOpt);
+                        }
+                    }
+                }
+                
+                filteredOptions.sort(() => Math.random() - 0.5);
 
                 // 4. Check if already answered
                 const { data: existingAnswer } = await supabase
