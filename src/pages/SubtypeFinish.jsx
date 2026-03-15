@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Loader2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
-import confetti from 'canvas-confetti';
 
 const SubtypeFinish = () => {
     const [searchParams] = useSearchParams();
@@ -82,18 +81,11 @@ const SubtypeFinish = () => {
                             // We might want to add archetype information to results table later
                         }, { onConflict: 'attempt_id' });
 
-                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
                     setStatus('success');
-                    setTimeout(() => navigate(`/result/${attemptId}`), 2500);
+                    setTimeout(() => navigate(`/result/${attemptId}`), 100);
                 } else {
-                    // TIE (Regra 5)
-                    if (attempt.meta_json.variant === '01') {
-                        setStatus('tie');
-                    } else {
-                        // Tie even on second variant? Rule says "repeated again"
-                        // We will allow one more retry or same variant if 02 already used
-                        setStatus('tie');
-                    }
+                    // TIE (Regra 5) - Auto retry for direct flow
+                    handleRetry();
                 }
             } catch (err) {
                 console.error(err);
@@ -145,24 +137,14 @@ const SubtypeFinish = () => {
         <div className="finish-container fade-in">
             <div className="finish-card glass-panel">
                 {status === 'success' && (
-                    <div className="finish-content animate-success">
-                        <CheckCircle className="success-icon" size={80} />
-                        <h2>Perfil Completo Definido!</h2>
-                        <p>Preparando seu relatório personalizado...</p>
-                        <div className="redirect-status">
-                            <Loader2 className="animate-spin" size={20} />
-                            <span>Redirecionando para o resultado...</span>
-                        </div>
+                    <div className="finish-content">
+                        {/* UI oculta para fluxo direto */}
                     </div>
                 )}
 
                 {status === 'tie' && (
-                    <div className="finish-content animate-success">
-                        <RefreshCw className="warning-icon" size={80} />
-                        <h2>Empate de Instintos</h2>
-                        <p>Houve um equilíbrio em suas respostas.</p>
-                        <p className="subtitle">Vamos realizar uma segunda rodada para maior precisão.</p>
-                        <button className="primary-btn pulse" onClick={handleRetry}>Iniciar 2ª Rodada</button>
+                    <div className="finish-content">
+                        {/* Auto-redirecionando para 2ª rodada */}
                     </div>
                 )}
 

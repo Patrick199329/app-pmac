@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase, getUserActivePlan } from '../services/supabase';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
-import confetti from 'canvas-confetti';
 
 const TieBreakerFinish = () => {
     const [searchParams] = useSearchParams();
@@ -87,15 +86,6 @@ const TieBreakerFinish = () => {
 
                 setResultData({ finalStatus, typeResult });
 
-                // 4. Effects: Only confetti if someone WON
-                if (finalStatus === 'DONE') {
-                    confetti({
-                        particleCount: 150,
-                        spread: 70,
-                        origin: { y: 0.6 },
-                        colors: ['#8b5cf6', '#10b981', '#ffffff']
-                    });
-                }
 
                 // 5. Update DB
                 const { data: { user } } = await supabase.auth.getUser();
@@ -140,7 +130,7 @@ const TieBreakerFinish = () => {
                     } else {
                         navigate(`/result/${attemptId}`);
                     }
-                }, finalStatus === 'DONE' ? 2000 : 3500); // More time if it's a tie to read the message
+                }, 100); // 100ms for direct flow transition
 
             } catch (err) {
                 console.error(err);
@@ -159,29 +149,8 @@ const TieBreakerFinish = () => {
         <div className="finish-container fade-in">
             <div className="finish-card glass-panel">
                 {status === 'success' && (
-                    <div className="finish-content animate-success">
-                        {resultData?.finalStatus === 'DONE' ? (
-                            <>
-                                <CheckCircle className="success-icon" size={80} />
-                                <h2>Desempate Concluído!</h2>
-                                <p>Perfil identificado com sucesso.</p>
-                                <div className="redirect-status">
-                                    <Loader2 className="animate-spin" size={20} />
-                                    <span>Redirecionando para o resultado...</span>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <AlertCircle className="warning-icon" size={80} />
-                                <h2>Empate Persistente</h2>
-                                <p>Sua distribuição ainda está equilibrada.</p>
-                                <p className="subtitle">Voltando ao resumo para nova rodada...</p>
-                                <div className="redirect-status">
-                                    <Loader2 className="animate-spin" size={20} />
-                                    <span>Redirecionando...</span>
-                                </div>
-                            </>
-                        )}
+                    <div className="finish-content">
+                        {/* UI oculta para fluxo direto */}
                     </div>
                 )}
 

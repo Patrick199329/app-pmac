@@ -162,7 +162,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const safeUsername = username.replace(/[<>:"/\\|?*]/g, ''); // Limpar caracteres inválidos para Windows
-        const customFileName = `PMAC ® ${planDisplay} - ${typeDisplay} - ${safeUsername}.pdf`;
+        const customFileName = `PMAC® ${planDisplay} - ${typeDisplay} - ${safeUsername}.pdf`;
 
         // 7. Upload e Link Final
         const finalPath = `generated/${finalUserId}/${subtypeCode}_${userPlan}_${Date.now()}.pdf`;

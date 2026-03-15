@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { Loader2, ChevronLeft, HelpCircle } from 'lucide-react';
+import { Loader2, ChevronLeft } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 const SubtypeEngine = () => {
@@ -119,14 +119,10 @@ const SubtypeEngine = () => {
     return (
         <div className="engine-container fade-in">
             <div className="progress-header">
-                <div className="step-info">Subtipo - Questão {currentStep + 1} de 5</div>
-                <div className="progress-bar-bg">
-                    <div className="progress-bar-fill" style={{ width: `${((currentStep + 1) / 5) * 100}%` }}></div>
-                </div>
+                <div></div>
             </div>
 
             <div className="question-card glass-panel">
-                <div className="question-icon"><HelpCircle size={24} /></div>
                 <h2 className="question-text">{question.text}</h2>
 
                 <div className="options-grid">
@@ -145,15 +141,7 @@ const SubtypeEngine = () => {
             </div>
 
             <div className="engine-footer">
-                <button
-                    className="secondary-btn"
-                    onClick={() => navigate(`/st/q/${currentStep - 1}?attemptId=${attemptId}`)}
-                    disabled={currentStep === 0 || saving}
-                    style={{ padding: '0.75rem 1.5rem', fontSize: '0.875rem' }}
-                >
-                    <ChevronLeft size={20} />
-                    <span>Anterior</span>
-                </button>
+                <div></div>
             </div>
 
             <style dangerouslySetInnerHTML={{

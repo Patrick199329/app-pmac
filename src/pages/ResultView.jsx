@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase, getUserActivePlan } from '../services/supabase';
+import confetti from 'canvas-confetti';
 import {
   BarChart2,
   AlertTriangle,
@@ -26,85 +27,102 @@ const ResultView = () => {
   useEffect(() => {
     const fetchResult = async () => {
       setLoading(true);
+      try {
+        let idToFetch = attemptId;
 
-      let idToFetch = attemptId;
+        if (attemptId === 'latest') {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            navigate('/login');
+            return;
+          }
+          const { data: latest } = await supabase
+            .from('results')
+            .select('attempt_id')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
 
-      // If 'latest', find the most recent result for user
-      if (attemptId === 'latest') {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          navigate('/login');
-          return;
+          if (latest) {
+            idToFetch = latest.attempt_id;
+          } else {
+            setLoading(false);
+            return;
+          }
         }
-        const { data: latest } = await supabase
+
+        const { data: res } = await supabase
           .from('results')
-          .select('attempt_id')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .select('*')
+          .eq('attempt_id', idToFetch)
           .single();
 
-        if (latest) {
-          idToFetch = latest.attempt_id;
-        } else {
-          setLoading(false);
+        const { data: att } = await supabase
+          .from('attempts')
+          .select('*')
+          .eq('id', idToFetch)
+          .single();
+
+        setResult(res);
+        setAttempt(att);
+
+        // Confetti if success
+        if (res?.status_copy === 'DONE') {
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#8b5cf6', '#10b981', '#ffffff']
+          });
+        }
+
+        // Auto-redirect if TIE for direct flow
+        if (res?.status_copy === 'TIE') {
+          navigate('/de/start');
           return;
         }
-      }
 
-      const { data: res } = await supabase
-        .from('results')
-        .select('*')
-        .eq('attempt_id', idToFetch)
-        .single();
+        // Fetch Plan and Report
+        if (res && att) {
+          const ownerId = att.user_id;
+          if (ownerId) {
+            const plan = await getUserActivePlan(ownerId);
+            setUserPlan(plan);
 
-      const { data: att } = await supabase
-        .from('attempts')
-        .select('*')
-        .eq('id', idToFetch)
-        .single();
+            let foundAsset = null;
 
-      setResult(res);
-      setAttempt(att);
+            if (plan === 'OURO' && att?.kind === 'SUBTYPE') {
+              const subtypeCode = `T${res.type_result}${att.meta_json.winner?.slice(-1)}`;
+              const { data: asset } = await supabase
+                .from('report_assets')
+                .select('*')
+                .eq('subtype', subtypeCode)
+                .eq('plan', 'OURO')
+                .maybeSingle();
 
-      // Fetch Plan and Report
-      if (res && att) {
-        const ownerId = att.user_id;
-        if (ownerId) {
-          const plan = await getUserActivePlan(ownerId);
-          setUserPlan(plan);
+              if (asset) foundAsset = asset;
+            }
 
-          let foundAsset = null;
+            if (!foundAsset) {
+              const { data: asset } = await supabase
+                .from('report_assets')
+                .select('*')
+                .eq('subtype', `T${res.type_result}`)
+                .eq('plan', 'BASICO')
+                .maybeSingle();
 
-          if (plan === 'OURO' && att?.kind === 'SUBTYPE') {
-            const subtypeCode = `T${res.type_result}${att.meta_json.winner?.slice(-1)}`;
-            const { data: asset } = await supabase
-              .from('report_assets')
-              .select('*')
-              .eq('subtype', subtypeCode)
-              .eq('plan', 'OURO')
-              .maybeSingle();
+              if (asset) foundAsset = asset;
+            }
 
-            if (asset) foundAsset = asset;
+            if (foundAsset) setReportAsset(foundAsset);
           }
-
-          // Fallback para Básico (se não encontrou Ouro ou se é plano Básico)
-          if (!foundAsset) {
-            const { data: asset } = await supabase
-              .from('report_assets')
-              .select('*')
-              .eq('subtype', `T${res.type_result}`)
-              .eq('plan', 'BASICO')
-              .maybeSingle();
-
-            if (asset) foundAsset = asset;
-          }
-
-          if (foundAsset) setReportAsset(foundAsset);
         }
+      } catch (err) {
+        console.error("Error fetching result:", err);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     fetchResult();
@@ -113,13 +131,11 @@ const ResultView = () => {
   const handleDownloadReport = async () => {
     if (!reportAsset || !result || !attempt) return;
 
-    // If it's just a static PDF, download directly
     if (reportAsset.asset_type === 'PDF') {
       window.open(reportAsset.file_url, '_blank');
       return;
     }
 
-    // Trigger the Edge Function for dynamic generation using fetch for better debugging
     setGenerating(true);
     try {
       const isSubtype = attempt?.kind === 'SUBTYPE';
@@ -152,11 +168,7 @@ const ResultView = () => {
 
       const resText = await response.text().catch(() => "Sem corpo de resposta");
       let resData = null;
-      try {
-        resData = JSON.parse(resText);
-      } catch (e) {
-        // Não é JSON
-      }
+      try { resData = JSON.parse(resText); } catch (e) {}
 
       if (!response.ok) {
         const errorMsg = resData?.error || resData?.details || resText || `Erro HTTP ${response.status}`;
@@ -164,7 +176,6 @@ const ResultView = () => {
       }
 
       if (resData?.url) {
-        // Engatilhar download direto para evitar bloqueio de popup
         const link = document.createElement('a');
         link.href = resData.url;
         link.setAttribute('download', '');
@@ -176,9 +187,7 @@ const ResultView = () => {
       }
     } catch (err) {
       console.error("Error generating report:", err);
-      // Limitar o tamanho da mensagem para o alert
-      const msg = err.message || "Erro desconhecido";
-      alert(`Falha na Geração: ${msg.substring(0, 200)}`);
+      alert(`Falha na Geração: ${err.message || "Erro desconhecido"}`);
     } finally {
       setGenerating(false);
     }
@@ -214,13 +223,6 @@ const ResultView = () => {
 
         {result.status_copy === 'DONE' && (
           <div className="outcome-box success">
-            <div className="score-badge">
-              {attempt?.kind === 'SUBTYPE' ? (
-                <span className="archetype-shorthand">T{result.type_result}{attempt.meta_json.winner?.slice(-1)}</span>
-              ) : (
-                `T${result.type_result}`
-              )}
-            </div>
             <div className="outcome-text">
               <h2>
                 {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE' && attempt.meta_json.archetype_title ? (
@@ -300,18 +302,7 @@ const ResultView = () => {
 
         {result.status_copy === 'TIE' && (
           <div className="outcome-box warning">
-            <div className="header-row">
-              <AlertTriangle size={32} />
-              <h2>Empate Detectado</h2>
-            </div>
-            <p>Suas respostas indicam uma distribuição equilibrada entre mais de um tipo.</p>
-            <div className="tie-info">
-              <Info size={16} />
-              <span>Você precisará realizar o Questionário de Desempate (DE) para definir seu perfil.</span>
-            </div>
-            <Link to="/de/start" className="primary-btn pulse" style={{ marginTop: '1.5rem' }}>
-              Ir para Desempate
-            </Link>
+            {/* UI oculta para fluxo direto - Redirecionando para desempate */}
           </div>
         )}
 
@@ -332,50 +323,6 @@ const ResultView = () => {
           </div>
         )}
 
-        <div className="result-details">
-          <h3>
-            {attempt?.kind === 'SUBTYPE' ? 'Distribuição de Instintos' : 'Distribuição de Pontos'}
-          </h3>
-          <div className="chart-container">
-            {attempt?.meta_json?.counts ? (
-              Object.entries(attempt.meta_json.counts)
-                .sort((a, b) => b[1] - a[1]) // Sort by count
-                .map(([type, count]) => {
-                  let label = `T${type}`;
-                  let isWinner = false;
-
-                  if (attempt?.kind === 'SUBTYPE') {
-                    const instinctMap = { '1': 'Autopreservação', '2': 'Social', '3': 'Relacional' };
-                    label = instinctMap[type] || type;
-                    // Check if this instinct is the winner
-                    const winningInstinctCode = attempt.meta_json.winner?.slice(-1);
-                    const currentInstinctLetter = type === '1' ? 'A' : type === '2' ? 'S' : 'R';
-                    isWinner = winningInstinctCode === currentInstinctLetter;
-                  } else {
-                    isWinner = parseInt(type) === result.type_result;
-                  }
-
-                  return (
-                    <div key={type} className={`chart-row ${isWinner ? 'winner-row' : ''}`}>
-                      <span className="type-label">{label}</span>
-                      <div className="bar-wrapper">
-                        <div
-                          className="bar-fill"
-                          style={{
-                            width: `${(count / (attempt?.kind === 'SUBTYPE' ? 5 : 15)) * 100}%`,
-                            background: isWinner ? 'var(--accent-primary)' : 'var(--text-tertiary)'
-                          }}
-                        ></div>
-                      </div>
-                      <span className="count-value">{count}</span>
-                    </div>
-                  );
-                })
-            ) : (
-              <div className="no-data-msg">Dados de distribuição não disponíveis para este resultado.</div>
-            )}
-          </div>
-        </div>
 
         <div className="actions">
           <Link to="/access" className="secondary-btn" style={{ maxWidth: '300px', margin: '0 auto' }}>

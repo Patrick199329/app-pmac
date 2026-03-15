@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase, getUserActivePlan } from '../services/supabase';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
-import confetti from 'canvas-confetti';
 
 const QuestionnaireFinish = () => {
     const [searchParams] = useSearchParams();
@@ -86,15 +85,6 @@ const QuestionnaireFinish = () => {
                     winners = [];
                 }
 
-                // 4. Final Processing
-                if (finalStatus === 'DONE') {
-                    confetti({
-                        particleCount: 150,
-                        spread: 70,
-                        origin: { y: 0.6 },
-                        colors: ['#8b5cf6', '#10b981', '#ffffff']
-                    });
-                }
 
                 // 5. Update Attempt and Results
                 const { data: { user } } = await supabase.auth.getUser();
@@ -136,7 +126,7 @@ const QuestionnaireFinish = () => {
                     } else {
                         navigate(`/result/${attemptId}`);
                     }
-                }, 2000);
+                }, 100);
 
             } catch (err) {
                 console.error("Evaluation error:", err);
@@ -155,14 +145,8 @@ const QuestionnaireFinish = () => {
         <div className="finish-container fade-in">
             <div className="finish-card glass-panel">
                 {status === 'success' && (
-                    <div className="finish-content animate-success">
-                        <CheckCircle className="success-icon" size={80} />
-                        <h2>Análise Concluída!</h2>
-                        <p>Identificamos seu perfil com sucesso.</p>
-                        <div className="redirect-status">
-                            <Loader2 className="animate-spin" size={20} />
-                            <span>Redirecionando para o resultado...</span>
-                        </div>
+                    <div className="finish-content">
+                        {/* UI oculta para fluxo direto */}
                     </div>
                 )}
 

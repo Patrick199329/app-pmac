@@ -21,6 +21,13 @@ const SubtypeStart = () => {
         setChecking(false);
     }, [type, navigate]);
 
+    // Auto-start for direct flow
+    useEffect(() => {
+        if (!checking && type && !loading) {
+            handleStart();
+        }
+    }, [checking, type, loading]);
+
     const handleStart = async () => {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
@@ -73,43 +80,9 @@ const SubtypeStart = () => {
 
     return (
         <div className="start-container fade-in">
-            <div className="start-card glass-panel">
-                <div className="icon-badge">
-                    <Target size={32} />
-                </div>
-                <h1>{settings.subtype_intro_title}</h1>
-                <p>Parabéns! Identificamos que seu perfil base é o <strong>Tipo {type}</strong>.</p>
-
-                <div className="info-box">
-                    <Info size={20} />
-                    <div>
-                        <p>{settings.subtype_intro_text}</p>
-                        <ul className="rules-summary">
-                            {[
-                                settings.subtype_intro_item1,
-                                settings.subtype_intro_item2
-                            ].filter(Boolean).map((item, idx) => (
-                                <li key={idx}>{item}</li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-
-                <div className="action-area">
-                    <button
-                        className="primary-btn pulse"
-                        onClick={handleStart}
-                        disabled={loading}
-                        style={{ width: '100%', padding: '1.25rem' }}
-                    >
-                        {loading ? (
-                            <Loader2 className="animate-spin" size={24} />
-                        ) : (
-                            <Target size={24} />
-                        )}
-                        <span>{settings.subtype_intro_btn}</span>
-                    </button>
-                </div>
+            <div className="start-card glass-panel" style={{ opacity: 0 }}>
+                {/* UI oculta para fluxo direto - Auto-start ativo */}
+                <Loader2 className="animate-spin" size={32} />
             </div>
 
             <style dangerouslySetInnerHTML={{
@@ -125,54 +98,14 @@ const SubtypeStart = () => {
                     max-width: 640px;
                     width: 100%;
                     padding: 4rem;
-                    text-align: center;
                     display: flex;
                     flex-direction: column;
-                    align-items: center;
-                    gap: 2rem;
-                    border: 1px solid rgba(16, 185, 129, 0.2);
-                }
-                .icon-badge {
-                    width: 80px;
-                    height: 80px;
-                    background: var(--bg-secondary);
-                    color: var(--accent-secondary);
-                    border-radius: 1.5rem;
-                    display: flex;
                     align-items: center;
                     justify-content: center;
-                    margin-bottom: 0.5rem;
-                    border: 1px solid var(--glass-border);
+                    gap: 2rem;
                 }
-                .start-card h1 {
-                    font-size: 2.25rem;
-                    color: var(--text-primary);
-                    margin: 0;
-                }
-                .info-box {
-                    background: var(--bg-secondary);
-                    border: 1px solid var(--glass-border);
-                    padding: 2rem;
-                    border-radius: 1.25rem;
-                    display: flex;
-                    gap: 1.5rem;
-                    text-align: left;
-                    font-size: 1rem;
-                    line-height: 1.6;
-                    color: var(--text-secondary);
-                    white-space: pre-wrap;
-                }
-                .rules-summary {
-                    margin-top: 1rem;
-                    padding-left: 1.5rem;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.5rem;
-                }
-                .action-area {
-                    margin-top: 1.5rem;
-                    width: 100%;
-                }
+                .animate-spin { animation: spin 1s linear infinite; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
             `}} />
         </div>
     );

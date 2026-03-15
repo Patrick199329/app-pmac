@@ -43,6 +43,13 @@ const TieBreakerStart = () => {
         checkTie();
     }, [navigate]);
 
+    // Auto-start for direct flow
+    useEffect(() => {
+        if (!checking && tiedTypes.length > 0 && !loading) {
+            handleStart();
+        }
+    }, [checking, tiedTypes, loading]);
+
     const [previousAttempt, setPreviousAttempt] = useState(null);
 
     const handleStart = async () => {
@@ -146,46 +153,9 @@ const TieBreakerStart = () => {
 
     return (
         <div className="start-container fade-in">
-            <div className="start-card glass-panel">
-                <div className="icon-badge">
-                    <GitMerge size={32} />
-                </div>
-                <h1>{settings.tiebreaker_intro_title}</h1>
-                <p>Identificamos um equilíbrio entre os tipos <strong>{tiedTypes.map(t => `T${t}`).join(', ')}</strong>.</p>
-
-                <div className="info-box">
-                    <Info size={20} />
-                    <div>
-                        <p>{settings.tiebreaker_intro_text}</p>
-                        <ul className="rules-summary">
-                            <li>{settings.tiebreaker_intro_item1}</li>
-                            <li>{settings.tiebreaker_intro_item2}</li>
-                            <li>{settings.tiebreaker_intro_item3}</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div className="action-area">
-                    <button
-                        className="primary-btn pulse"
-                        onClick={handleStart}
-                        disabled={loading}
-                        style={{ width: '100%', padding: '1.25rem' }}
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 className="animate-spin" size={24} />
-                                <span>Preparando Desempate...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Play size={24} />
-                                <span>{settings.tiebreaker_intro_btn}</span>
-                                <ChevronRight size={20} />
-                            </>
-                        )}
-                    </button>
-                </div>
+            <div className="start-card glass-panel" style={{ opacity: 0 }}>
+                {/* UI oculta para fluxo direto - Auto-start ativo */}
+                <Loader2 className="animate-spin" size={32} />
             </div>
 
             <style dangerouslySetInnerHTML={{
@@ -201,53 +171,14 @@ const TieBreakerStart = () => {
                     max-width: 640px;
                     width: 100%;
                     padding: 4rem;
-                    text-align: center;
                     display: flex;
                     flex-direction: column;
-                    align-items: center;
-                    gap: 2rem;
-                    border: 1px solid rgba(139, 92, 246, 0.2);
-                }
-                .icon-badge {
-                    width: 80px;
-                    height: 80px;
-                    background: var(--bg-secondary);
-                    color: var(--accent-primary);
-                    border-radius: 1.5rem;
-                    display: flex;
                     align-items: center;
                     justify-content: center;
-                    margin-bottom: 0.5rem;
-                    border: 1px solid var(--glass-border);
+                    gap: 2rem;
                 }
-                .start-card h1 {
-                    font-size: 2.25rem;
-                    color: var(--text-primary);
-                    margin: 0;
-                }
-                .info-box {
-                    background: var(--bg-secondary);
-                    border: 1px solid var(--glass-border);
-                    padding: 2rem;
-                    border-radius: 1.25rem;
-                    display: flex;
-                    gap: 1.5rem;
-                    text-align: left;
-                    font-size: 1rem;
-                    line-height: 1.6;
-                    color: var(--text-secondary);
-                }
-                .rules-summary {
-                    margin-top: 1rem;
-                    padding-left: 1.5rem;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.5rem;
-                }
-                .action-area {
-                    margin-top: 1.5rem;
-                    width: 100%;
-                }
+                .animate-spin { animation: spin 1s linear infinite; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
             `}} />
         </div>
     );

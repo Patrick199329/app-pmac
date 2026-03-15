@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Save,
   Loader2,
-  HelpCircle,
   ChevronLeft,
   ChevronRight,
   AlertCircle
@@ -149,11 +148,7 @@ const QuestionnaireEngine = () => {
     }
   };
 
-  const handlePrevious = () => {
-    if (qIndex > 0) {
-      navigate(`/basic/q/${qIndex - 1}?attemptId=${attemptId}`);
-    }
-  };
+
 
   const handleSaveExit = async () => {
     if (selectedOptionId) {
@@ -208,12 +203,7 @@ const QuestionnaireEngine = () => {
   return (
     <div className="engine-container fade-in">
       <div className="engine-header">
-        <div className="progress-info">
-          <span>Pergunta {qIndex + 1} de {attempt.meta_json.question_order.length}</span>
-          <div className="progress-bar-bg">
-            <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
-          </div>
-        </div>
+          <span></span>
         <button className="exit-btn" onClick={handleSaveExit} title="Salvar e Sair">
           <Save size={18} />
           <span>Salvar e Sair</span>
@@ -222,7 +212,6 @@ const QuestionnaireEngine = () => {
 
       <div className="question-card glass-panel">
         <div className="question-text">
-          <HelpCircle size={24} className="accent-text" />
           <h2>{question?.text || "Carregando texto..."}</h2>
         </div>
 
@@ -249,14 +238,7 @@ const QuestionnaireEngine = () => {
       </div>
 
       <div className="engine-footer">
-        <button
-          className="nav-btn prev"
-          onClick={handlePrevious}
-          disabled={qIndex === 0 || saveLoading}
-        >
-          <ChevronLeft size={24} />
-          <span>Anterior</span>
-        </button>
+        <div></div>
       </div>
 
       <style dangerouslySetInnerHTML={{
