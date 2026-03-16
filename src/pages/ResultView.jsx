@@ -207,7 +207,7 @@ const ResultView = () => {
         <div className="empty-icon"><BarChart2 size={48} /></div>
         <h2>Nenhum resultado encontrado</h2>
         <p>Você ainda não concluiu o questionário básico.</p>
-        <Link to="/access" className="primary-btn">Iniciar Teste</Link>
+        <Link to="/access" className="primary-btn">Iniciar Questionário PMAC®</Link>
       </div>
     );
   }
@@ -217,7 +217,7 @@ const ResultView = () => {
       <div className="result-card glass-panel">
         <div className="result-header">
           <div className="header-icon"><BarChart2 size={32} /></div>
-          <h1>Resultado da Avaliação</h1>
+          <h1>Resultado PMAC®</h1>
           <span className="timestamp">Realizado em {new Date(result.created_at).toLocaleDateString('pt-BR')}</span>
         </div>
 
@@ -233,7 +233,7 @@ const ResultView = () => {
                   </>
                 ) : (
                   <>
-                    <span className="archetype-label">Seu Tipo:</span>
+                    <span className="archetype-label">Seu Perfil:</span>
                     <br />
                     <span className="archetype-title">
                       {result.type_result === 1 && 'Perfeccionista'}
@@ -251,8 +251,8 @@ const ResultView = () => {
               </h2>
               <p>
                 {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE'
-                  ? `Análise concluída com sucesso. Você é uma personalidade Tipo ${result.type_result} com instinto dominante ${attempt.meta_json.winner?.endsWith('A') ? 'Autopreservação' : attempt.meta_json.winner?.endsWith('S') ? 'Social' : 'Relacional'}.`
-                  : `Com base em suas respostas, sua personalidade predominante se alinha ao perfil de um ${result.type_result === 1 ? 'Perfeccionista' :
+                  ? `Análise concluída com sucesso. Sua essência comportamental é de um Tipo ${result.type_result} com instinto dominante ${attempt.meta_json.winner?.endsWith('A') ? 'Autopreservação' : attempt.meta_json.winner?.endsWith('S') ? 'Social' : 'Relacional'}.`
+                  : `Com base em suas respostas, sua essência comportamental é de um ${result.type_result === 1 ? 'Perfeccionista' :
                     result.type_result === 2 ? 'Ajudador' :
                       result.type_result === 3 ? 'Realizador' :
                         result.type_result === 4 ? 'Emocional' :
@@ -278,8 +278,7 @@ const ResultView = () => {
               <FileIcon size={40} color="var(--accent-primary)" />
             </div>
             <div className="delivery-content">
-              <h3>{userPlan === 'OURO' ? 'Seu Relatório Completo' : 'Seu Relatório de Perfil'} ({userPlan})</h3>
-              <p>{userPlan === 'OURO' ? 'O dossiê detalhado do seu perfil PMAC está pronto.' : 'O relatório básico do seu tipo PMAC está pronto para download.'}</p>
+              <p>{userPlan === 'OURO' ? 'Seu Relatório PMAC® está pronto para download.' : 'Seu Relatório PMAC® está pronto para download.'}</p>
               {reportAsset ? (
                 <button
                   onClick={handleDownloadReport}
@@ -293,7 +292,7 @@ const ResultView = () => {
               ) : (
                 <div className="no-report-msg">
                   <AlertTriangle size={16} />
-                  <span>Relatório sendo processado. Disponível em breve.</span>
+                  <span>Seu Relatório PMAC® está sendo processado. Disponível em breve.</span>
                 </div>
               )}
             </div>
@@ -327,7 +326,7 @@ const ResultView = () => {
         <div className="actions">
           <Link to="/access" className="secondary-btn" style={{ maxWidth: '300px', margin: '0 auto' }}>
             <RefreshCw size={18} />
-            <span>Refazer Teste</span>
+            <span>Refazer Questionário PMAC®</span>
           </Link>
         </div>
       </div>

@@ -3,11 +3,10 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import {
   ArrowLeft,
-  ArrowRight,
-  Save,
-  Loader2,
   ChevronLeft,
   ChevronRight,
+  Save,
+  Loader2,
   AlertCircle
 } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -117,11 +116,9 @@ const QuestionnaireEngine = () => {
   const handleSelect = async (optionId) => {
     setSelectedOptionId(optionId);
     setErrorMsg(null);
-
-    // Auto-advance logic (standardizing with DE engine)
     setSaveLoading(true);
+
     try {
-      // Use UPSERT for maximum stability
       const { error } = await supabase
         .from('answers')
         .upsert({
@@ -131,15 +128,6 @@ const QuestionnaireEngine = () => {
         }, { onConflict: 'attempt_id, question_id' });
 
       if (error) throw error;
-
-      setTimeout(() => {
-        if (qIndex < (attempt.meta_json?.question_order?.length || 1) - 1) {
-          navigate(`/basic/q/${qIndex + 1}?attemptId=${attemptId}`);
-        } else {
-          navigate(`/basic/finish?attemptId=${attemptId}`);
-        }
-      }, 400);
-
     } catch (err) {
       console.error("Critical error saving answer:", err);
       setErrorMsg("Não foi possível salvar sua resposta. Tente novamente.");
@@ -148,7 +136,15 @@ const QuestionnaireEngine = () => {
     }
   };
 
-
+  const handleNext = () => {
+    if (!selectedOptionId) return;
+    
+    if (qIndex < (attempt.meta_json?.question_order?.length || 1) - 1) {
+      navigate(`/basic/q/${qIndex + 1}?attemptId=${attemptId}`);
+    } else {
+      navigate(`/basic/finish?attemptId=${attemptId}`);
+    }
+  };
 
   const handleSaveExit = async () => {
     if (selectedOptionId) {
@@ -239,7 +235,20 @@ const QuestionnaireEngine = () => {
 
       <div className="engine-footer">
         <div></div>
+        <button 
+          className="nav-btn primary" 
+          onClick={handleNext} 
+          disabled={!selectedOptionId || saveLoading}
+        >
+          {saveLoading ? <Loader2 className="animate-spin" size={20} /> : (
+            <>
+              <span>Próxima</span>
+              <ChevronRight size={20} />
+            </>
+          )}
+        </button>
       </div>
+
 
       <style dangerouslySetInnerHTML={{
         __html: `

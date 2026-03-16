@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { Loader2, ChevronLeft } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 const SubtypeEngine = () => {
@@ -92,18 +92,19 @@ const SubtypeEngine = () => {
                     question_id: question.id,
                     option_id: optionId
                 }, { onConflict: 'attempt_id,question_id' });
-
-            setTimeout(() => {
-                if (currentStep < 4) {
-                    navigate(`/st/q/${currentStep + 1}?attemptId=${attemptId}`);
-                } else {
-                    navigate(`/st/finish?attemptId=${attemptId}`);
-                }
-            }, 400);
         } catch (err) {
             console.error(err);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleNext = () => {
+        if (!selectedOption) return;
+        if (currentStep < 4) {
+            navigate(`/st/q/${currentStep + 1}?attemptId=${attemptId}`);
+        } else {
+            navigate(`/st/finish?attemptId=${attemptId}`);
         }
     };
 
@@ -142,7 +143,20 @@ const SubtypeEngine = () => {
 
             <div className="engine-footer">
                 <div></div>
+                <button 
+                  className="nav-btn primary" 
+                  onClick={handleNext} 
+                  disabled={!selectedOption || saving}
+                >
+                  {saving ? <Loader2 className="animate-spin" size={20} /> : (
+                    <>
+                      <span>Próxima</span>
+                      <ChevronRight size={20} />
+                    </>
+                  )}
+                </button>
             </div>
+
 
             <style dangerouslySetInnerHTML={{
                 __html: `
@@ -180,7 +194,31 @@ const SubtypeEngine = () => {
                 .option-btn.selected .option-indicator { border-color: var(--accent-primary); background: var(--accent-primary); }
                 .option-btn.selected .option-indicator::after { content: ''; position: absolute; top:50%; left:50%; transform:translate(-50%,-50%); width: 8px; height: 8px; background: white; border-radius: 50%; }
                 .option-text { font-size: 1.1rem; line-height: 1.5; }
-                .engine-footer { display: flex; justify-content: flex-start; }
+                .engine-footer { display: flex; justify-content: flex-end; margin-top: 2rem; }
+                .nav-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 1rem 2rem;
+                    border-radius: 0.75rem;
+                    font-weight: 700;
+                    transition: var(--transition-smooth);
+                    background: var(--bg-secondary);
+                    color: var(--text-secondary);
+                    cursor: pointer;
+                }
+                .nav-btn:hover:not(:disabled) {
+                    background: var(--bg-tertiary);
+                    color: var(--text-primary);
+                }
+                .nav-btn.primary {
+                    background: var(--accent-primary);
+                    color: white;
+                }
+                .nav-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
             `}} />
         </div>
     );

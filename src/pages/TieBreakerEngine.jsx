@@ -116,21 +116,21 @@ const TieBreakerEngine = () => {
                 }, { onConflict: 'attempt_id,question_id' });
 
             if (error) throw error;
-
-            // Auto-advance with slight delay for UX
-            setTimeout(() => {
-                const totalQuestions = attemptMeta.question_order.length;
-                if (currentStep < totalQuestions - 1) {
-                    navigate(`/de/q/${currentStep + 1}?attemptId=${attemptId}`);
-                } else {
-                    navigate(`/de/finish?attemptId=${attemptId}`);
-                }
-            }, 400);
         } catch (err) {
             console.error(err);
             alert('Erro ao salvar resposta.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleNext = () => {
+        if (!selectedOption) return;
+        const totalQuestions = attemptMeta.question_order.length;
+        if (currentStep < totalQuestions - 1) {
+            navigate(`/de/q/${currentStep + 1}?attemptId=${attemptId}`);
+        } else {
+            navigate(`/de/finish?attemptId=${attemptId}`);
         }
     };
 
@@ -167,9 +167,21 @@ const TieBreakerEngine = () => {
                 </div>
             </div>
 
-            <div className="engine-footer">
-                <div></div>
+            <div className="engine-footer" style={{ justifyContent: 'flex-end' }}>
+                <button 
+                  className="nav-btn primary" 
+                  onClick={handleNext} 
+                  disabled={!selectedOption || saving}
+                >
+                  {saving ? <Loader2 className="animate-spin" size={20} /> : (
+                    <>
+                      <span>Próxima</span>
+                      <ChevronRight size={20} />
+                    </>
+                  )}
+                </button>
             </div>
+
 
             <style dangerouslySetInnerHTML={{
                 __html: `
@@ -277,6 +289,10 @@ const TieBreakerEngine = () => {
                 .nav-btn.primary {
                     background: var(--accent-primary);
                     color: white;
+                }
+                .nav-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
                 }
             `}} />
         </div>

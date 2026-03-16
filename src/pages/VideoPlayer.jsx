@@ -258,7 +258,7 @@ const VideoPlayer = () => {
             disabled={!canContinue}
             onClick={handleContinue}
           >
-            <span>Continuar para o Teste</span>
+            <span>Continuar para o Questionário PMAC®</span>
             <ArrowRight size={20} />
           </button>
         </div>
