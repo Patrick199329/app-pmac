@@ -10,7 +10,8 @@ import {
   Loader2,
   ChevronRight,
   Download,
-  FileText as FileIcon
+  FileText as FileIcon,
+  Video
 } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 
@@ -23,6 +24,7 @@ const ResultView = () => {
   const [userPlan, setUserPlan] = useState('BASICO');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [finalVideoUrl, setFinalVideoUrl] = useState(null);
 
   useEffect(() => {
     const fetchResult = async () => {
@@ -118,6 +120,14 @@ const ResultView = () => {
             if (foundAsset) setReportAsset(foundAsset);
           }
         }
+
+        // Fetch Final Video
+        const { data: videoData } = await supabase
+          .from('videos')
+          .select('url')
+          .eq('key', 'intro_2')
+          .single();
+        if (videoData?.url) setFinalVideoUrl(videoData.url);
       } catch (err) {
         console.error("Error fetching result:", err);
       } finally {
@@ -225,33 +235,30 @@ const ResultView = () => {
           <div className="outcome-box success">
             <div className="outcome-text">
               <h2>
-                {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE' && attempt.meta_json.archetype_title ? (
-                  <>
-                    <span className="archetype-label">Seu Perfil Final:</span>
-                    <br />
-                    <span className="archetype-title">{attempt.meta_json.archetype_title}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="archetype-label">Seu Perfil:</span>
-                    <br />
-                    <span className="archetype-title">
-                      {result.type_result === 1 && 'Perfeccionista'}
-                      {result.type_result === 2 && 'Ajudador'}
-                      {result.type_result === 3 && 'Realizador'}
-                      {result.type_result === 4 && 'Emocional'}
-                      {result.type_result === 5 && 'Analítico'}
-                      {result.type_result === 6 && 'Questionador'}
-                      {result.type_result === 7 && 'Entusiasta'}
-                      {result.type_result === 8 && 'Dominador'}
-                      {result.type_result === 9 && 'Mediador'}
-                    </span>
-                  </>
-                )}
+                <span className="archetype-label">Seu Perfil:</span>
+                <br />
+                <span className="archetype-title">
+                  {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE' && attempt.meta_json.archetype_title 
+                    ? attempt.meta_json.archetype_title 
+                    : (
+                      <>
+                        {result.type_result === 1 && 'Perfeccionista'}
+                        {result.type_result === 2 && 'Ajudador'}
+                        {result.type_result === 3 && 'Realizador'}
+                        {result.type_result === 4 && 'Emocional'}
+                        {result.type_result === 5 && 'Analítico'}
+                        {result.type_result === 6 && 'Questionador'}
+                        {result.type_result === 7 && 'Entusiasta'}
+                        {result.type_result === 8 && 'Dominador'}
+                        {result.type_result === 9 && 'Mediador'}
+                      </>
+                    )
+                  }
+                </span>
               </h2>
               <p>
-                {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE'
-                  ? `Análise concluída com sucesso. Sua essência comportamental é de um Tipo ${result.type_result} com instinto dominante ${attempt.meta_json.winner?.endsWith('A') ? 'Autopreservação' : attempt.meta_json.winner?.endsWith('S') ? 'Social' : 'Relacional'}.`
+                {userPlan === 'OURO' && attempt?.kind === 'SUBTYPE' && attempt.meta_json.archetype_title
+                  ? `Com base em suas respostas, sua essência comportamental é de um ${attempt.meta_json.archetype_title}.`
                   : `Com base em suas respostas, sua essência comportamental é de um ${result.type_result === 1 ? 'Perfeccionista' :
                     result.type_result === 2 ? 'Ajudador' :
                       result.type_result === 3 ? 'Realizador' :
@@ -263,6 +270,34 @@ const ResultView = () => {
                   }.`
                 }
               </p>
+            </div>
+          </div>
+        )}
+
+        {result.status_copy === 'DONE' && finalVideoUrl && (
+          <div className="final-video-section glass-panel fade-in">
+            <div className="video-section-header">
+               <Video size={20} className="accent-text" />
+               <h3>Mensagem Final</h3>
+            </div>
+            <div className="video-container">
+              {finalVideoUrl.includes('youtube.com') || finalVideoUrl.includes('youtu.be') ? (
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={finalVideoUrl.includes('v=') 
+                    ? finalVideoUrl.replace('watch?v=', 'embed/').split('&')[0]
+                    : finalVideoUrl.includes('youtu.be/')
+                      ? `https://www.youtube.com/embed/${finalVideoUrl.split('youtu.be/')[1]}`
+                      : finalVideoUrl}
+                  title="Vídeo Final"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                ></iframe>
+              ) : (
+                <video src={finalVideoUrl} controls className="native-video" />
+              )}
             </div>
           </div>
         )}
@@ -311,13 +346,10 @@ const ResultView = () => {
               <AlertTriangle size={32} />
               <h2>Resultado Inconsistente</h2>
             </div>
-            <p>Não foi possível identificar um padrão claro. Conforme as regras:</p>
-            <ul className="rules-list">
-              <li>Você deve assistir ao <strong>vídeo da segunda instrução</strong> antes de repetir.</li>
-              <li>Se ocorrer uma segunda inconsistência, haverá uma pausa obrigatória de 24 horas.</li>
-            </ul>
-            <Link to="/video/intro_2" className="primary-btn" style={{ marginTop: '1.5rem' }}>
-              Assistir Instrução 2
+            <p>Não foi possível identificar um padrão claro em suas respostas.</p>
+            <p>Recomendamos refazer o questionário com mais calma e atenção a cada afirmação.</p>
+            <Link to="/access" className="primary-btn" style={{ marginTop: '1.5rem' }}>
+              Refazer Questionário PMAC®
             </Link>
           </div>
         )}
@@ -384,6 +416,48 @@ const ResultView = () => {
         .outcome-box.success { background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.1); }
         .outcome-box.warning { background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.1); flex-direction: column; align-items: flex-start; }
         .outcome-box.danger { background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.1); flex-direction: column; align-items: flex-start; }
+        
+        .final-video-section {
+          padding: 2rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .video-section-header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .video-section-header h3 {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+
+        .video-container {
+          position: relative;
+          padding-top: 56.25%; /* 16:9 */
+          background: black;
+          border-radius: 1rem;
+          overflow: hidden;
+          border: 1px solid var(--glass-border);
+        }
+
+        .video-container iframe, .native-video {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border: none;
+        }
+
+        .native-video {
+          object-fit: contain;
+        }
         
         .report-delivery-box {
           display: flex;

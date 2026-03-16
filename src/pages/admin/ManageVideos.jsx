@@ -118,7 +118,7 @@ const ManageVideos = () => {
                                 <Video size={24} />
                             </div>
                             <div>
-                                <h3>{vid.key === 'intro_1' ? 'Instrução 1 (Início)' : 'Instrução 2 (Inconsistência)'}</h3>
+                                <h3>{vid.key === 'intro_1' ? 'Instrução 1 (Início)' : 'Vídeo Final'}</h3>
                                 <p className="key-label">Key: {vid.key}</p>
                             </div>
                         </div>
@@ -126,7 +126,7 @@ const ManageVideos = () => {
                         <p className="description">
                             {vid.key === 'intro_1'
                                 ? 'Apresentado obrigatoriamente para todos os novos usuários antes do primeiro teste.'
-                                : 'Apresentado obrigatoriamente para usuários que gerarem um resultado inconsistente.'}
+                                : 'Exibido na tela final de resultados para todos os usuários.'}
                         </p>
 
                         <div className="input-group">

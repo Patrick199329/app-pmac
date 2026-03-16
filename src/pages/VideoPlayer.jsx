@@ -17,7 +17,7 @@ const VideoPlayer = () => {
   const getTitle = () => {
     switch (key) {
       case 'intro_1': return 'Vídeo Obrigatório: Introdução';
-      case 'intro_2': return 'Vídeo Obrigatório: Instruções';
+      case 'intro_2': return 'Vídeo Final';
       default: return 'Vídeo de Instrução';
     }
   };

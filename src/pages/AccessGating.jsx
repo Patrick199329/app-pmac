@@ -127,20 +127,7 @@ const AccessGating = () => {
         return;
       }
 
-      if (lastResult?.status_copy === 'INCONSISTENT') {
-        const { data: view2 } = await supabase
-          .from('video_views')
-          .select('completed_at')
-          .eq('user_id', user.id)
-          .eq('video_key', 'intro_2')
-          .maybeSingle();
-
-        if (!view2) {
-          navigate('/video/intro_2');
-          return;
-        }
-      }
-
+      // Inconsistency flow handled directly by allowing redo
       navigate('/video/intro_1');
 
     } catch (err) {
