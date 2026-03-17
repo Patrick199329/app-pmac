@@ -14,7 +14,7 @@ const Login = () => {
 
   const translateError = (err) => {
     const message = err.toLowerCase();
-    if (message.includes('invalid login credentials')) return 'E-mail ou senha incorretos.';
+    if (message.includes('invalid login credentials')) return 'E-mail ou senha incorretos. Verifique se digitou corretamente.';
     if (message.includes('email not confirmed')) return 'Por favor, confirme seu e-mail antes de entrar.';
     if (message.includes('rate limit')) return 'Muitas tentativas. Aguarde um momento.';
     return 'Erro ao entrar. Verifique seus dados.';
@@ -25,8 +25,8 @@ const Login = () => {
     setLoading(true);
     setError(null);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
       password,
     });
 
@@ -34,7 +34,11 @@ const Login = () => {
       setError(translateError(authError.message));
       setLoading(false);
     } else {
-      navigate('/access');
+      if (data.user?.user_metadata?.must_change_password) {
+        navigate('/reset-password?temp=true');
+      } else {
+        navigate('/access');
+      }
     }
   };
 
