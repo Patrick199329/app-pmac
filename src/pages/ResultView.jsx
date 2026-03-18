@@ -225,11 +225,20 @@ const ResultView = () => {
 
   if (!result) {
     return (
-      <div className="empty-state glass-panel fade-in">
-        <div className="empty-icon"><BarChart2 size={48} /></div>
-        <h2>Nenhum resultado encontrado</h2>
-        <p>Você ainda não concluiu o questionário básico.</p>
-        <Link to="/access" className="primary-btn">Iniciar Questionário PMAC®</Link>
+      <div className="result-container fade-in">
+        <div className="result-card glass-panel empty-state">
+          <div className="empty-icon locked">
+            <BarChart2 size={48} />
+          </div>
+          <h2>Nenhum resultado encontrado</h2>
+          <p>Você ainda não concluiu o questionário básico ou seu teste está em processamento.</p>
+          <div className="actions" style={{ width: '100%', marginTop: '1rem' }}>
+            <Link to="/access" className="primary-btn pulse" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+              <span>Iniciar Questionário PMAC®</span>
+              <ChevronRight size={20} />
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -658,6 +667,41 @@ const ResultView = () => {
           .actions {
             flex-direction: column;
           }
+        }
+
+        .empty-state {
+          text-align: center;
+          align-items: center;
+          max-width: 500px;
+          padding: 3rem !important;
+          margin: 4rem auto;
+          gap: 1rem !important;
+        }
+
+        .empty-icon {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 0.5rem;
+        }
+
+        .empty-icon.locked {
+          background: rgba(245, 158, 11, 0.1);
+          color: var(--accent-warning);
+          border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .pulse {
+          animation: pulse-ring 2s infinite;
+        }
+
+        @keyframes pulse-ring {
+          0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
         }
       `}} />
     </div>
