@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate, Link } from 'react-router-dom';
-import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Mail, Lock, User, Loader2, CheckCircle2, Check, X, ShieldCheck } from 'lucide-react';
 import { useAppSettings } from '../context/AppSettingsContext';
 
 const Signup = () => {
@@ -13,6 +13,14 @@ const Signup = () => {
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
     const navigate = useNavigate();
+    
+    // Password rules validation
+    const hasMinLength = password.length >= 6;
+    const hasNumber = /\d/.test(password);
+    const hasUpperCase = /[A-Z]/.test(password);
+    
+    // We only strictly require length as per Supabase defaults, but others are recommended
+    const isPasswordValid = hasMinLength; 
 
     const translateError = (err) => {
         const message = err.toLowerCase();
@@ -48,16 +56,9 @@ const Signup = () => {
             }
 
             if (data?.user) {
-                const { error: profileError } = await supabase
-                    .from('profiles')
-                    .insert([{ id: data.user.id, name, role: 'USER' }]);
-
-                if (profileError && !profileError.message.includes('row-level security')) {
-                    setError(translateError(profileError.message));
-                    setLoading(false);
-                    return;
-                }
-
+                // Profile creation is already handled by a database trigger (handle_new_user)
+                // so we don't need to manually insert here, which was causing 409 Conflict errors.
+                
                 if (!data.session) {
                     setSuccess(true);
                 } else {
@@ -150,13 +151,27 @@ const Signup = () => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            minLength={6}
                         />
+                        <div className="password-rules">
+                            <span className="input-hint" style={{marginBottom: '0.2rem', opacity: 0.8}}><ShieldCheck size={12} /> Segurança da Senha:</span>
+                            <div className={`rule-item ${hasMinLength ? 'valid' : (password.length > 0 ? 'invalid' : '')}`}>
+                                {hasMinLength ? <Check size={14} /> : <X size={14} />}
+                                <span>Pelo menos 6 caracteres</span>
+                            </div>
+                            <div className={`rule-item ${hasNumber ? 'valid' : ''}`}>
+                                {hasNumber ? <Check size={14} /> : <div style={{width: 14}} />}
+                                <span>Pelo menos um número (recomendado)</span>
+                            </div>
+                            <div className={`rule-item ${hasUpperCase ? 'valid' : ''}`}>
+                                {hasUpperCase ? <Check size={14} /> : <div style={{width: 14}} />}
+                                <span>Pelo menos uma letra maiúscula (recomendado)</span>
+                            </div>
+                        </div>
                     </div>
 
-                    <button type="submit" className="auth-submit" disabled={loading}>
+                    <button type="submit" className="auth-submit" disabled={loading || !isPasswordValid}>
                         {loading ? <Loader2 className="animate-spin" /> : <UserPlus size={20} />}
-                        <span>Cadastrar</span>
+                        <span>{loading ? 'Criando Conta...' : 'Cadastrar'}</span>
                     </button>
                 </form>
 

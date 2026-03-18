@@ -25,6 +25,7 @@ const ResultView = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [finalVideoUrl, setFinalVideoUrl] = useState(null);
+  const [userRole, setUserRole] = useState('USER');
 
   useEffect(() => {
     const fetchResult = async () => {
@@ -52,6 +53,17 @@ const ResultView = () => {
             setLoading(false);
             return;
           }
+        }
+        
+        // Fetch user role
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', currentUser.id)
+            .single();
+          if (profile) setUserRole(profile.role);
         }
 
         const { data: res } = await supabase
@@ -348,18 +360,22 @@ const ResultView = () => {
             </div>
             <p>Não foi possível identificar um padrão claro em suas respostas.</p>
             <p>Recomendamos refazer o questionário com mais calma e atenção a cada afirmação.</p>
-            <Link to="/access" className="primary-btn" style={{ marginTop: '1.5rem' }}>
-              Refazer Questionário PMAC®
-            </Link>
+            {userRole === 'ADMIN' && (
+              <Link to="/access" className="primary-btn" style={{ marginTop: '1.5rem' }}>
+                Refazer Questionário PMAC®
+              </Link>
+            )}
           </div>
         )}
 
 
         <div className="actions">
-          <Link to="/access" className="secondary-btn" style={{ maxWidth: '300px', margin: '0 auto' }}>
-            <RefreshCw size={18} />
-            <span>Refazer Questionário PMAC®</span>
-          </Link>
+          {userRole === 'ADMIN' && (
+            <Link to="/access" className="secondary-btn" style={{ maxWidth: '300px', margin: '0 auto' }}>
+              <RefreshCw size={18} />
+              <span>Refazer Questionário PMAC®</span>
+            </Link>
+          )}
         </div>
       </div>
 
