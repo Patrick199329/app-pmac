@@ -120,7 +120,11 @@ Deno.serve(async (req: Request) => {
         console.log(`DEBUG: Enviando ao conversor (Data: ${currentDate})...`);
         const formData = new FormData();
         const docxBuffer = await docxData.arrayBuffer();
-        formData.append('file', new Blob([docxBuffer]), 'report.docx');
+        
+        // Detectar extensão real do template para o conversor identificar (odt ou docx)
+        const assetExt = asset.file_path.split('.').pop() || 'docx';
+        formData.append('file', new Blob([docxBuffer]), `template.${assetExt}`);
+        
         formData.append('username', username);
         formData.append('currentDate', currentDate);
 

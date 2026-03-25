@@ -21,47 +21,42 @@ app.use((req, res, next) => {
 });
 
 /**
- * Non-destructive XML patching.
- * We ONLY replace strings; we never delete elements or structural tags.
+ * Universal XML patching for DOCX and ODT.
  */
-function patchDocxXml(zip) {
-    const docFile = zip.file('word/document.xml');
-    if (docFile) {
-        let content = docFile.asText();
+function patchXml(zip) {
+    const isOdt = !!zip.file('content.xml');
+    
+    const filesToPatch = isOdt 
+        ? ['content.xml', 'styles.xml'] 
+        : [
+            'word/document.xml', 'word/styles.xml', 
+            'word/header1.xml', 'word/header2.xml', 'word/header3.xml', 
+            'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'
+          ];
 
-        // 1. Normalize placeholders
+    filesToPatch.forEach(filename => {
+        const file = zip.file(filename);
+        if (!file) return;
+        
+        let content = file.asText();
+
+        // 1. Normalize placeholders [TAG] -> {TAG}
         content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
 
-        // 2. Font replacement
+        // 2. Font replacement (Targets fallback Carlito/Caladea on Linux)
         content = content.replace(/Trebuchet MS/g, 'Calibri');
         content = content.replace(/Times New Roman/g, 'Calibri');
 
-        // 3. TARGETED BLANK PAGE FIX (SAFE VERSION):
-        // Only changing section type, NOT deleting paragraphs.
-        content = content.replace(/(<w:type\s+w:val=")(?:oddPage|evenPage)(")/g, '$1nextPage$2');
+        // 3. Structural Fixes
+        if (filename === 'word/document.xml') {
+            // DOCX Blank Page fix: change page break type to avoid extra empty pages
+            content = content.replace(/(<w:type\s+w:val=")(?:oddPage|evenPage)(")/g, '$1nextPage$2');
+        }
 
-        zip.file('word/document.xml', content);
-    }
-
-    // Aux files (headers/footers)
-    const auxFiles = ['word/header1.xml', 'word/header2.xml', 'word/header3.xml', 'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'];
-    auxFiles.forEach(filename => {
-        const file = zip.file(filename);
-        if (!file) return;
-        let c = file.asText();
-        c = c.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
-        c = c.replace(/Trebuchet MS/g, 'Calibri');
-        c = c.replace(/Times New Roman/g, 'Calibri');
-        zip.file(filename, c);
+        zip.file(filename, content);
     });
 
-    const stylesFile = zip.file('word/styles.xml');
-    if (stylesFile) {
-        let s = stylesFile.asText()
-            .replace(/Trebuchet MS/g, 'Calibri')
-            .replace(/Times New Roman/g, 'Calibri');
-        zip.file('word/styles.xml', s);
-    }
+    return isOdt;
 }
 
 app.post('/convert', upload.single('file'), (req, res) => {
@@ -71,34 +66,61 @@ app.post('/convert', upload.single('file'), (req, res) => {
         const username = (req.body.username || 'Usuário').trim();
         const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
 
-        console.log(`[${new Date().toISOString()}] Converting (Safe Mode) for: ${username}`);
+        console.log(`[${new Date().toISOString()}] Converting for: ${username} (Format: ${req.file.originalname})`);
 
         const zip = new PizZip(req.file.buffer);
         
-        // Use non-destructive patching
-        patchDocxXml(zip);
+        // Detect and patch
+        const isOdt = patchXml(zip);
 
-        const doc = new Docxtemplater(zip, { linebreaks: true });
-        doc.render({
+        const data = {
             NOME: username, nome: username.toLowerCase(), NAME: username.toUpperCase(),
             DATA: currentDate, data: currentDate, Data: currentDate, DATE: currentDate, date: currentDate,
-        });
+        };
 
-        const modifiedDocxBuffer = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+        let modifiedBuffer;
+        if (isOdt) {
+            console.log("DEBUG: ODT Replacement Logic (Manual XML Safe)");
+            const xmlFiles = ['content.xml', 'styles.xml'];
+            xmlFiles.forEach(xmlPath => {
+                const file = zip.file(xmlPath);
+                if (!file) return;
+                
+                let content = file.asText();
+                for (const [key, value] of Object.entries(data)) {
+                    const escapedValue = String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    const regex = new RegExp(`\\{${key}\\}`, 'g');
+                    content = content.replace(regex, escapedValue);
+                }
+                zip.file(xmlPath, content);
+            });
+            modifiedBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+        } else {
+            // Standard DOCX replacement
+            const doc = new Docxtemplater(zip, { linebreaks: true });
+            doc.render(data);
+            modifiedBuffer = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+        }
 
-        libre.convert(modifiedDocxBuffer, '.pdf', undefined, (err, pdfBuffer) => {
-            if (err) return res.status(500).json({ error: 'Conversion failed' });
+        // Conversion to PDF
+        libre.convert(modifiedBuffer, '.pdf', undefined, (err, pdfBuffer) => {
+            if (err) {
+                console.error("Conversion Error:", err);
+                return res.status(500).json({ error: 'Conversion failed' });
+            }
             
             res.setHeader('Content-Type', 'application/pdf');
-            // Filename here is just a default, Edge function handles the real one
-            res.setHeader('Content-Disposition', 'attachment; filename=relatorio.pdf');
             res.send(pdfBuffer);
         });
     } catch (error) {
         console.error(`[Error] ${error}`);
-        res.status(500).json({ error: 'Processing failed' });
+        res.status(500).json({ error: 'Processing failed', details: error.message });
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Service port ${PORT}`));
+
