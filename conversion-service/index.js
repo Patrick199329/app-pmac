@@ -70,7 +70,7 @@ app.post('/convert', upload.single('file'), (req, res) => {
 
         const zip = new PizZip(req.file.buffer);
         
-        // Detect and patch
+        // 1. Universal Patching (also detects format)
         const isOdt = patchXml(zip);
 
         const data = {
@@ -78,34 +78,41 @@ app.post('/convert', upload.single('file'), (req, res) => {
             DATA: currentDate, data: currentDate, Data: currentDate, DATE: currentDate, date: currentDate,
         };
 
-        let modifiedBuffer;
-        if (isOdt) {
-            console.log("DEBUG: ODT Replacement Logic (Manual XML Safe)");
-            const xmlFiles = ['content.xml', 'styles.xml'];
-            xmlFiles.forEach(xmlPath => {
-                const file = zip.file(xmlPath);
-                if (!file) return;
-                
-                let content = file.asText();
-                for (const [key, value] of Object.entries(data)) {
-                    const escapedValue = String(value)
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;');
-                    const regex = new RegExp(`\\{${key}\\}`, 'g');
-                    content = content.replace(regex, escapedValue);
-                }
-                zip.file(xmlPath, content);
-            });
-            modifiedBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
-        } else {
-            // Standard DOCX replacement
-            const doc = new Docxtemplater(zip, { linebreaks: true });
-            doc.render(data);
-            modifiedBuffer = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
-        }
+        console.log(`[DEBUG] Processor: Universal Manual XML (isOdt: ${isOdt})`);
 
-        // Conversion to PDF
+        // 2. Universal Manual Replacement
+        const filesToProcess = isOdt 
+            ? ['content.xml', 'styles.xml'] 
+            : [
+                'word/document.xml', 'word/styles.xml', 
+                'word/header1.xml', 'word/header2.xml', 'word/header3.xml', 
+                'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'
+              ];
+
+        filesToProcess.forEach(xmlPath => {
+            const file = zip.file(xmlPath);
+            if (!file) return;
+            
+            let content = file.asText();
+            for (const [key, value] of Object.entries(data)) {
+                // Support both {TAG} and [TAG] (patchXml usually converts [ to {)
+                const escapedValue = String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&apos;');
+                
+                // Replace {KEY} or [KEY]
+                content = content.replace(new RegExp(`\\{${key}\\}`, 'g'), escapedValue);
+                content = content.replace(new RegExp(`\\[${key}\\]`, 'g'), escapedValue);
+            }
+            zip.file(xmlPath, content);
+        });
+
+        const modifiedBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+
+        // 3. Conversion to PDF
         libre.convert(modifiedBuffer, '.pdf', undefined, (err, pdfBuffer) => {
             if (err) {
                 console.error("Conversion Error:", err);
