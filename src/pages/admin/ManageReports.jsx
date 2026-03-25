@@ -65,12 +65,18 @@ const ManageReports = () => {
         setStatus({ type: 'info', message: `Processando ${file.name}...` });
 
         try {
-            const isDocx = file.name.toLowerCase().endsWith('.docx');
-            const assetType = isDocx ? 'DOCX' : 'PDF';
-            const bucketName = isDocx ? 'report-templates' : 'report-files';
+            const fileNameLower = file.name.toLowerCase();
+            const isDocx = fileNameLower.endsWith('.docx');
+            const isOdt = fileNameLower.endsWith('.odt');
+            
+            // Se for DOCX ou ODT, tratamos como template dinâmico
+            const isTemplate = isDocx || isOdt;
+            const assetType = isTemplate ? 'DOCX' : 'PDF';
+            const bucketName = isTemplate ? 'report-templates' : 'report-files';
+            const extension = isDocx ? '.docx' : (isOdt ? '.odt' : '.pdf');
+            
             const hash = await calculateHash(file);
-
-            const fileName = `${plan}_${subtype}_${Date.now()}${isDocx ? '.docx' : '.pdf'}`;
+            const fileName = `${plan}_${subtype}_${Date.now()}${extension}`;
             const filePath = `templates/${fileName}`;
 
             // 1. Upload to Storage
@@ -192,7 +198,7 @@ const ManageReports = () => {
                                                 <span>{mapping ? 'Trocar' : 'Upload'}</span>
                                                 <input
                                                     type="file"
-                                                    accept=".pdf,.docx"
+                                                    accept=".pdf,.docx,.odt"
                                                     hidden
                                                     disabled={uploading}
                                                     onChange={(e) => handleFileUpload(subtype, plan, e.target.files[0])}
