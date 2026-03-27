@@ -19,6 +19,7 @@ const Layout = () => {
   const { settings } = useAppSettings();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState({ name: 'Carregando...', role: 'USER' });
+  const [hasActivePass, setHasActivePass] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -30,6 +31,7 @@ const Layout = () => {
         return;
       }
 
+      // Fetch Profile
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -39,6 +41,16 @@ const Layout = () => {
       if (profile) {
         setUser(profile);
       }
+
+      // Check for active access pass
+      const { data: activePass } = await supabase
+        .from('access_passes')
+        .select('id')
+        .eq('user_id', authUser.id)
+        .eq('status', 'ACTIVE')
+        .maybeSingle();
+
+      setHasActivePass(!!activePass);
     };
     fetchUser();
   }, [navigate]);
@@ -91,7 +103,9 @@ const Layout = () => {
         <nav className="nav-group">
           {/* ... nav mapping remains the same ... */}
           <div className="nav-label">QUESTIONÁRIO</div>
-          {navItems.map((item) => (
+          {navItems
+            .filter(item => hasActivePass || user.role === 'ADMIN') 
+            .map((item) => (
             <Link
               key={item.path}
               to={item.path}
@@ -103,10 +117,12 @@ const Layout = () => {
             </Link>
           ))}
 
-          {user.role === 'ADMIN' && (
+          {(user.role === 'ADMIN' || user.role === 'PARTNER') && (
             <>
               <div className="nav-label admin-label">ADMINISTRAÇÃO</div>
-              {adminItems.map((item) => (
+              {adminItems
+                .filter(item => user.role === 'ADMIN' || item.label === 'Controle de Acesso')
+                .map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
@@ -126,7 +142,9 @@ const Layout = () => {
             <div className="user-avatar">{user.name?.[0] || 'U'}</div>
             <div className="user-details">
               <div className="user-name">{user.name}</div>
-              <div className="user-role">{user.role === 'ADMIN' ? 'Administrador' : 'Usuário'}</div>
+              <div className="user-role">
+                {user.role === 'ADMIN' ? 'Administrador' : user.role === 'PARTNER' ? 'Parceiro' : 'Usuário'}
+              </div>
             </div>
           </div>
           <button className="logout-btn" onClick={handleLogout}>
@@ -289,6 +307,8 @@ const Layout = () => {
           display: flex;
           flex-direction: column;
           position: relative;
+          min-width: 0;
+          overflow: hidden;
         }
 
         .mobile-topbar {

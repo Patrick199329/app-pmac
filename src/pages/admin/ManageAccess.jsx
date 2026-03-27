@@ -27,20 +27,48 @@ const ManageAccess = () => {
     const [creatingUser, setCreatingUser] = useState(false);
     const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', plan: 'BASICO' });
     const [resetForm, setResetForm] = useState({ password: '' });
+    const [currentProfile, setCurrentProfile] = useState(null);
+    const [partnerQuota, setPartnerQuota] = useState(null);
+    const [showQuotaModal, setShowQuotaModal] = useState(false);
+    const [selectedPartner, setSelectedPartner] = useState(null);
+    const [quotaForm, setQuotaForm] = useState({ basic_limit: 0, gold_limit: 0, basic_used: 0, gold_used: 0 });
+    const [updatingQuota, setUpdatingQuota] = useState(false);
+    const [allProfiles, setAllProfiles] = useState([]);
 
     const fetchData = async () => {
         setLoading(true);
-        const { data: users, error: viewError } = await supabase
-            .from('admin_user_controls_view')
-            .select('*')
-            .order('pass_granted_at', { ascending: false, nullsFirst: false });
+        
+        // 1. Get Current User and Role
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (!currentUser) return;
+
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+        setCurrentProfile(profile);
+
+        const isPartner = profile?.role === 'PARTNER';
+
+        // 2. Fetch Quota if Partner
+        if (isPartner) {
+            const { data: quota } = await supabase.from('partner_quotas').select('*').eq('partner_id', currentUser.id).single();
+            setPartnerQuota(quota);
+        }
+
+        // 3. Fetch Users
+        let query = supabase.from('admin_user_controls_view').select('*');
+        if (isPartner) {
+            query = query.eq('partner_id', currentUser.id);
+        }
+        
+        const { data: users, error: viewError } = await query.order('pass_granted_at', { ascending: false, nullsFirst: false });
 
         if (viewError) console.error("Error fetching admin controls view:", viewError);
 
-        // Fetch roles from profiles to allow management
+        // Fetch roles and names from profiles for lookup
         const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, role');
+            .select('id, name, role');
+        
+        setAllProfiles(profiles || []);
 
         const merged = (users || []).map(u => ({
             ...u,
@@ -55,22 +83,11 @@ const ManageAccess = () => {
         e.preventDefault();
         setCreatingUser(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dxgxdgnuzimhgmwhdkcd.supabase.co';
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4Z3hkZ251emltaGdtd2hka2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODkxMzYsImV4cCI6MjA4NzM2NTEzNn0.Dv5hMleFScPsE3xGWVdwM1qOD1Dgf6CZQ9DuNF_5C8U';
-
-            const response = await fetch(`${baseUrl}/functions/v1/admin-create-user`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`,
-                    'apikey': anonKey
-                },
-                body: JSON.stringify({ ...newUserForm, action: 'create' })
+            const { data, error } = await supabase.functions.invoke('admin-create-user', {
+                body: { ...newUserForm, action: 'create' }
             });
 
-            const resData = await response.json();
-            if (!response.ok) throw new Error(resData.error || "Erro ao criar usuário");
+            if (error) throw error;
 
             alert("Usuário criado com sucesso!");
             setShowNewUserModal(false);
@@ -109,22 +126,69 @@ const ManageAccess = () => {
     };
 
     const handleUpdatePlan = async (userId, newPlan) => {
-        setUserData(prev => prev.map(u => u.id === userId ? { ...u, plan: newPlan } : u));
-        const { data: activePass } = await supabase
-            .from('access_passes')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('status', 'ACTIVE')
-            .limit(1)
-            .single();
+        try {
+            const { data, error } = await supabase.functions.invoke('admin-create-user', {
+                body: {
+                    action: 'update-plan',
+                    targetUserId: userId,
+                    newPlan: newPlan
+                }
+            });
 
-        if (activePass) {
-            await supabase.from('access_passes').update({ plan: newPlan }).eq('id', activePass.id);
-        } else {
-            await supabase.from('profiles').update({ plan: newPlan }).eq('id', userId);
+            if (error) throw error;
+
+            setUserData(prev => prev.map(u => 
+                u.id === userId ? { ...u, plan: newPlan === 'SEM_PLANO' ? null : newPlan } : u
+            ));
+            
+            fetchData(); // Refresh everything to update status pills
+        } catch (err) {
+            console.error("Plan Update Error:", err);
+            alert(`Falha ao atualizar plano: ${err.message}`);
         }
+    };
+
+    const handleOpenQuotaModal = async (user) => {
+        setSelectedPartner(user);
+        const { data: quota } = await supabase
+            .from('partner_quotas')
+            .select('*')
+            .eq('partner_id', user.id)
+            .maybeSingle();
         
-        fetchData();
+        setQuotaForm({ 
+            basic_limit: quota?.basic_limit || 0, 
+            gold_limit: quota?.gold_limit || 0,
+            basic_used: quota?.basic_used || 0,
+            gold_used: quota?.gold_used || 0
+        });
+        setShowQuotaModal(true);
+    };
+
+    const handleUpdateQuota = async (e) => {
+        e.preventDefault();
+        if (!selectedPartner) return;
+        setUpdatingQuota(true);
+        try {
+            const { error } = await supabase
+                .from('partner_quotas')
+                .upsert({
+                    partner_id: selectedPartner.id,
+                    basic_limit: parseInt(quotaForm.basic_limit),
+                    gold_limit: parseInt(quotaForm.gold_limit),
+                    updated_at: new Date().toISOString()
+                });
+
+            if (error) throw error;
+            alert("Cota atualizada com sucesso!");
+            setShowQuotaModal(false);
+            fetchData();
+        } catch (err) {
+            console.error("Error updating quota:", err);
+            alert("Falha ao atualizar cota: " + err.message);
+        } finally {
+            setUpdatingQuota(false);
+        }
     };
 
     const handleDeleteUser = async (user) => {
@@ -134,21 +198,11 @@ const ManageAccess = () => {
 
         setLoading(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dxgxdgnuzimhgmwhdkcd.supabase.co';
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4Z3hkZ251emltaGdtd2hka2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODkxMzYsImV4cCI6MjA4NzM2NTEzNn0.Dv5hMleFScPsE3xGWVdwM1qOD1Dgf6CZQ9DuNF_5C8U';
-
-            const response = await fetch(`${baseUrl}/functions/v1/admin-create-user`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`,
-                    'apikey': anonKey
-                },
-                body: JSON.stringify({ action: 'delete', targetUserId: user.id })
+            const { data, error } = await supabase.functions.invoke('admin-create-user', {
+                body: { action: 'delete', targetUserId: user.id }
             });
 
-            if (!response.ok) throw new Error("Erro ao excluir usuário");
+            if (error) throw error;
 
             alert("Usuário excluído com sucesso.");
             fetchData();
@@ -164,25 +218,15 @@ const ManageAccess = () => {
         e.preventDefault();
         setCreatingUser(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dxgxdgnuzimhgmwhdkcd.supabase.co';
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4Z3hkZ251emltaGdtd2hka2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODkxMzYsImV4cCI6MjA4NzM2NTEzNn0.Dv5hMleFScPsE3xGWVdwM1qOD1Dgf6CZQ9DuNF_5C8U';
-
-            const response = await fetch(`${baseUrl}/functions/v1/admin-create-user`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`,
-                    'apikey': anonKey
-                },
-                body: JSON.stringify({ 
+            const { data, error } = await supabase.functions.invoke('admin-create-user', {
+                body: { 
                     action: 'reset-password', 
                     targetUserId: selectedUser.id,
                     password: resetForm.password 
-                })
+                }
             });
 
-            if (!response.ok) throw new Error("Erro ao resetar senha");
+            if (error) throw error;
 
             alert("Senha resetada! O usuário deverá trocá-la no próximo acesso.");
             setShowResetModal(false);
@@ -244,34 +288,19 @@ const ManageAccess = () => {
 
             const { data: { session } } = await supabase.auth.getSession();
 
-            const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dxgxdgnuzimhgmwhdkcd.supabase.co';
-            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4Z3hkZ251emltaGdtd2hka2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODkxMzYsImV4cCI6MjA4NzM2NTEzNn0.Dv5hMleFScPsE3xGWVdwM1qOD1Dgf6CZQ9DuNF_5C8U';
-
-            const response = await fetch(`${baseUrl}/functions/v1/generate-report`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`,
-                    'apikey': anonKey
-                },
-                body: JSON.stringify({
+            const { data, error } = await supabase.functions.invoke('generate-report', {
+                body: {
                     subtypeCode,
                     userPlan: user.plan || 'BASICO',
-                    targetUserId: user.id // O segredo para gerar para outros
-                })
+                    targetUserId: user.id
+                }
             });
 
-            const resText = await response.text();
-            let resData = null;
-            try { resData = JSON.parse(resText); } catch (e) { }
+            if (error) throw error;
 
-            if (!response.ok) {
-                throw new Error(resData?.error || resText || `Erro HTTP ${response.status}`);
-            }
-
-            if (resData?.url) {
+            if (data?.url) {
                 const link = document.createElement('a');
-                link.href = resData.url;
+                link.href = data.url;
                 link.setAttribute('download', '');
                 document.body.appendChild(link);
                 link.click();
@@ -310,22 +339,54 @@ const ManageAccess = () => {
             <style dangerouslySetInnerHTML={{
                 __html: `
                 .admin-page {
-                    max-width: 1400px;
-                    margin: 0 auto;
                     width: 100%;
+                    max-width: 100%;
+                    padding: 2rem;
+                    min-height: calc(100vh - 4rem);
+                    background: var(--bg-primary);
                 }
                 .users-table-wrapper {
                     width: 100%;
-                    overflow-x: auto;
+                    max-height: calc(100vh - 280px); /* Leave room for header */
+                    overflow: auto;
+                    margin-top: 1rem;
+                    /* Custom Scrollbar */
+                    scrollbar-width: thin;
+                    scrollbar-color: var(--accent-primary) var(--bg-secondary);
+                    position: relative;
+                }
+                .users-table-wrapper::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+                .users-table-wrapper::-webkit-scrollbar-track {
+                    background: var(--bg-secondary);
+                    border-radius: 4px;
+                }
+                .users-table-wrapper::-webkit-scrollbar-thumb {
+                    background: var(--accent-primary);
+                    border-radius: 4px;
+                    border: 2px solid var(--bg-secondary);
                 }
                 .admin-table {
                     width: 100%;
+                    min-width: 1200px;
+                    border-collapse: separate;
+                    border-spacing: 0;
+                }
+                .admin-table thead th {
+                    position: sticky;
+                    top: 0;
+                    z-index: 10;
+                    background: var(--bg-secondary);
+                    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
                 }
                 .admin-table th:nth-child(1), .admin-table td:nth-child(1) { width: 220px; }
                 .admin-table th:nth-child(2), .admin-table td:nth-child(2) { width: 130px; }
                 .admin-table th:nth-child(3), .admin-table td:nth-child(3) { width: 100px; }
                 .admin-table th:nth-child(4), .admin-table td:nth-child(4) { width: 100px; }
-                .admin-table th:nth-child(8), .admin-table td:nth-child(8) { width: 140px; }
+                .admin-table th:nth-child(5) { width: 150px; }
+                .admin-table th:nth-child(9), .admin-table td:nth-child(9) { width: 140px; }
 
                 .modal-overlay {
                     position: fixed;
@@ -338,17 +399,21 @@ const ManageAccess = () => {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    z-index: 1000;
-                    padding: 1rem;
+                    z-index: 2000;
+                    padding: 2rem 1rem;
+                    overflow-y: auto;
                 }
                 .modal-content {
                     width: 100%;
                     max-width: 500px;
+                    max-height: calc(100vh - 4rem);
+                    overflow-y: auto;
                     background: var(--bg-secondary);
                     border: 1px solid var(--glass-border);
                     border-radius: 1rem;
                     padding: 2rem;
                     position: relative;
+                    margin: auto;
                 }
                 .modal-header {
                     display: flex;
@@ -376,7 +441,7 @@ const ManageAccess = () => {
                     border: 1px solid var(--glass-border);
                     color: var(--text-primary);
                     padding: 0.8rem 1rem;
-                    borderRadius: 0.5rem;
+                    border-radius: 0.5rem;
                     font-size: 1rem;
                 }
                 .modal-actions {
@@ -409,6 +474,25 @@ const ManageAccess = () => {
                     color: var(--text-secondary);
                     cursor: pointer;
                 }
+                .quota-indicator {
+                    background: var(--bg-tertiary);
+                    border: 1px solid var(--glass-border);
+                    padding: 0.5rem 1rem;
+                    border-radius: 0.6rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    font-size: 0.85rem;
+                }
+                .quota-label {
+                    color: var(--text-tertiary);
+                    font-weight: 600;
+                }
+                .quota-value {
+                    font-weight: 800;
+                }
+                .quota-value.success { color: var(--accent-success); }
+                .quota-value.danger { color: var(--accent-danger); }
                 `
             }} />
 
@@ -416,13 +500,59 @@ const ManageAccess = () => {
                 <div className="header-title">
                     <h1>Controle de Acesso</h1>
                     <p style={{ color: 'var(--text-tertiary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                        Monitoramento de prazos e acessos em tempo real.
+                        {currentProfile?.role === 'PARTNER' 
+                            ? "Gerencie os usuários cadastrados por sua unidade."
+                            : "Monitoramento de prazos e acessos em tempo real."}
                     </p>
+                    {partnerQuota && (
+                        <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem' }}>
+                            <div className="quota-indicator">
+                                <span className="quota-label">Básico:</span>
+                                <span className={`quota-value ${partnerQuota.basic_used >= partnerQuota.basic_limit ? 'danger' : 'success'}`}>
+                                    {partnerQuota.basic_used}/{partnerQuota.basic_limit}
+                                </span>
+                            </div>
+                            <div className="quota-indicator">
+                                <span className="quota-label">Ouro:</span>
+                                <span className={`quota-value ${partnerQuota.gold_used >= partnerQuota.gold_limit ? 'danger' : 'success'}`}>
+                                    {partnerQuota.gold_used}/{partnerQuota.gold_limit}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <button 
                         className="btn-primary" 
-                        onClick={() => setShowNewUserModal(true)}
+                        onClick={() => {
+                            if (currentProfile?.role === 'PARTNER') {
+                                if (!partnerQuota) {
+                                    alert("Cota não configurada. Entre em contato com o administrador.");
+                                    return;
+                                }
+                                
+                                const hasBasic = partnerQuota.basic_used < partnerQuota.basic_limit;
+                                const hasGold = partnerQuota.gold_used < partnerQuota.gold_limit;
+
+                                if (!hasBasic && !hasGold) {
+                                    alert("Sua cota total de usuários esgotou. Entre em contato com o suporte.");
+                                    return;
+                                }
+
+                                // Auto-select available plan
+                                if (!hasBasic && hasGold) {
+                                    setNewUserForm(prev => ({ ...prev, plan: 'OURO' }));
+                                } else if (!hasBasic && !hasGold) {
+                                    setNewUserForm(prev => ({ ...prev, plan: 'SEM_PLANO' }));
+                                } else {
+                                    setNewUserForm(prev => ({ ...prev, plan: 'BASICO' }));
+                                }
+                            } else {
+                                // Admin defaults to SEM_PLANO for new partners/users if they prefer
+                                setNewUserForm(prev => ({ ...prev, plan: 'SEM_PLANO' }));
+                            }
+                            setShowNewUserModal(true);
+                        }}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                     >
                         <UserPlus size={18} />
@@ -448,6 +578,7 @@ const ManageAccess = () => {
                             <th>Passe</th>
                             <th>Plano</th>
                             <th>Cargo</th>
+                            {currentProfile?.role === 'ADMIN' && <th>Vínculo</th>}
                             <th>Conclusão</th>
                             <th>Perfil</th>
                             <th>Último Login</th>
@@ -479,9 +610,9 @@ const ManageAccess = () => {
                                                     <span>{passDays > 0 ? `Ativo (${passDays}d)` : 'Expirado'}</span>
                                                 </div>
                                             ) : (
-                                                <div className="status-pill danger">
+                                                <div className="status-pill" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>
                                                     <XCircle size={12} />
-                                                    <span>Inativo</span>
+                                                    <span>Sem Plano</span>
                                                 </div>
                                             )}
                                         </div>
@@ -489,8 +620,9 @@ const ManageAccess = () => {
                                     <td>
                                         <select
                                             className="plan-select"
-                                            value={u.plan || 'BASICO'}
+                                            value={u.plan || 'SEM_PLANO'}
                                             onChange={(e) => handleUpdatePlan(u.id, e.target.value)}
+                                            disabled={currentProfile?.role === 'PARTNER'} 
                                             style={{
                                                 background: 'var(--bg-tertiary)',
                                                 border: '1px solid var(--glass-border)',
@@ -499,9 +631,11 @@ const ManageAccess = () => {
                                                 borderRadius: '0.4rem',
                                                 fontSize: '0.75rem',
                                                 fontWeight: '700',
-                                                cursor: 'pointer'
+                                                cursor: currentProfile?.role === 'PARTNER' ? 'not-allowed' : 'pointer',
+                                                opacity: currentProfile?.role === 'PARTNER' ? 0.6 : 1
                                             }}
                                         >
+                                            <option value="SEM_PLANO">Sem Plano</option>
                                             <option value="BASICO">Básico</option>
                                             <option value="OURO">Ouro</option>
                                         </select>
@@ -511,6 +645,7 @@ const ManageAccess = () => {
                                             className="plan-select"
                                             value={u.role || 'USER'}
                                             onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                                            disabled={currentProfile?.role === 'PARTNER'} // Partners cannot change roles
                                             style={{
                                                 background: 'var(--bg-tertiary)',
                                                 border: '1px solid var(--glass-border)',
@@ -519,13 +654,22 @@ const ManageAccess = () => {
                                                 borderRadius: '0.4rem',
                                                 fontSize: '0.75rem',
                                                 fontWeight: '700',
-                                                cursor: 'pointer'
+                                                cursor: currentProfile?.role === 'PARTNER' ? 'not-allowed' : 'pointer',
+                                                opacity: currentProfile?.role === 'PARTNER' ? 0.6 : 1
                                             }}
                                         >
                                             <option value="USER">Usuário</option>
+                                            <option value="PARTNER">Parceiro</option>
                                             <option value="ADMIN">Admin</option>
                                         </select>
                                     </td>
+                                    {currentProfile?.role === 'ADMIN' && (
+                                        <td>
+                                            <span style={{ fontSize: '0.8rem', color: u.partner_id ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}>
+                                                {u.partner_id ? (allProfiles.find(p => p.id === u.partner_id)?.name || 'Parceiro') : '-'}
+                                            </span>
+                                        </td>
+                                    )}
                                     <td>
                                         {u.test_started_at ? (
                                             <div className="status-indicator">
@@ -555,13 +699,15 @@ const ManageAccess = () => {
                                                     <button className="action-btn report" onClick={() => handleViewReport(u)} title="Ver Relatório">
                                                         <FileText size={16} />
                                                     </button>
-                                                    <button className="action-btn audit" onClick={() => window.open(`/admin/audit/${u.id}`, '_blank')} title="Auditoria">
-                                                        <History size={16} />
-                                                    </button>
+                                                    {currentProfile?.role === 'ADMIN' && (
+                                                        <button className="action-btn audit" onClick={() => window.open(`/admin/audit/${u.id}`, '_blank')} title="Auditoria">
+                                                            <History size={16} />
+                                                        </button>
+                                                    )}
                                                 </>
                                             )}
                                             {isActive ? (
-                                                <button className="action-btn revoke" onClick={() => handleRevoke(u.id)}><ShieldX size={16} /></button>
+                                                <button className="action-btn revoke" onClick={() => handleRevoke(u.id)} title="Revogar Acesso"><ShieldX size={16} /></button>
                                             ) : (
                                                 <button className="action-btn grant" onClick={() => handleGrant(u.id)} title="Dar Acesso"><ShieldCheck size={16} /></button>
                                             )}
@@ -573,14 +719,26 @@ const ManageAccess = () => {
                                             >
                                                 <Key size={16} />
                                             </button>
-                                            <button 
-                                                className="action-btn revoke" 
-                                                onClick={() => handleDeleteUser(u)}
-                                                title="Excluir Usuário"
-                                                style={{ color: 'var(--accent-danger)' }}
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {currentProfile?.role === 'ADMIN' && u.role === 'PARTNER' && (
+                                                <button 
+                                                    className="action-btn audit" 
+                                                    onClick={() => handleOpenQuotaModal(u)}
+                                                    title="Gerenciar Cota"
+                                                    style={{ color: 'var(--accent-primary)' }}
+                                                >
+                                                    <Calendar size={16} />
+                                                </button>
+                                            )}
+                                            {currentProfile?.role === 'ADMIN' && (
+                                                <button 
+                                                    className="action-btn revoke" 
+                                                    onClick={() => handleDeleteUser(u)}
+                                                    title="Excluir Usuário"
+                                                    style={{ color: 'var(--accent-danger)' }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -637,8 +795,13 @@ const ManageAccess = () => {
                                     value={newUserForm.plan}
                                     onChange={e => setNewUserForm({...newUserForm, plan: e.target.value})}
                                 >
-                                    <option value="BASICO">Básico</option>
-                                    <option value="OURO">Ouro</option>
+                                    <option value="SEM_PLANO">Sem Plano</option>
+                                    {(currentProfile?.role !== 'PARTNER' || partnerQuota?.basic_used < partnerQuota?.basic_limit) && (
+                                        <option value="BASICO">Básico</option>
+                                    )}
+                                    {(currentProfile?.role !== 'PARTNER' || partnerQuota?.gold_used < partnerQuota?.gold_limit) && (
+                                        <option value="OURO">Ouro</option>
+                                    )}
                                 </select>
                             </div>
                             <div className="modal-actions">
@@ -684,6 +847,52 @@ const ManageAccess = () => {
                                 </button>
                                 <button type="submit" className="btn-primary" disabled={creatingUser}>
                                     {creatingUser ? 'Atualizando...' : 'Confirmar Novo Reset'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {showQuotaModal && (
+                <div className="modal-overlay fade-in">
+                    <div className="modal-content glass-panel" style={{ maxWidth: '400px' }}>
+                        <div className="modal-header">
+                            <h2>Gerenciar Cota</h2>
+                            <button className="close-btn" onClick={() => setShowQuotaModal(false)}>
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            Parceiro: <strong>{selectedPartner?.name}</strong><br/>
+                            Uso Atual: {quotaForm.basic_used} Básico / {quotaForm.gold_used} Ouro
+                        </p>
+                        <form onSubmit={handleUpdateQuota} className="modal-form">
+                            <div className="form-group">
+                                <label>Limite Plano Básico</label>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    required 
+                                    value={quotaForm.basic_limit}
+                                    onChange={e => setQuotaForm({...quotaForm, basic_limit: e.target.value})}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Limite Plano Ouro</label>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    required 
+                                    value={quotaForm.gold_limit}
+                                    onChange={e => setQuotaForm({...quotaForm, gold_limit: e.target.value})}
+                                />
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" className="btn-secondary" onClick={() => setShowQuotaModal(false)}>
+                                    Cancelar
+                                </button>
+                                <button type="submit" className="btn-primary" disabled={updatingQuota}>
+                                    {updatingQuota ? 'Atualizando...' : 'Salvar Alterações'}
                                 </button>
                             </div>
                         </form>
