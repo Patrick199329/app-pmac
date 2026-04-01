@@ -32,38 +32,40 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
                 }
 
                 const isAdmin = profile.role === 'ADMIN';
+                const isPartner = profile.role === 'PARTNER';
 
-                // Admin requirement check
-                if (requireAdmin && !isAdmin) {
+                // Admin/Partner requirement check
+                if (requireAdmin && !isAdmin && !isPartner) {
                     if (isMounted) setStatus({ loading: false, authorized: false });
                     return;
                 }
 
-                // If admin, they pass everything
-                if (isAdmin) {
-                    if (isMounted) setStatus({ loading: true, authorized: true }); // Keep loading false below
-                } else {
-                    // Standard user pass check
-                    const { data: passes } = await supabase
-                        .from('access_passes')
-                        .select('created_at')
-                        .eq('user_id', user.id)
-                        .eq('status', 'ACTIVE')
-                        .order('created_at', { ascending: false })
-                        .limit(1);
+                // Internal staff (Admin/Partner) are authorized for everything they can see
+                if (isAdmin || isPartner) {
+                    if (isMounted) setStatus({ loading: false, authorized: true });
+                    return;
+                }
+                
+                // Standard user pass check logic follows...
+                const { data: passes } = await supabase
+                    .from('access_passes')
+                    .select('created_at')
+                    .eq('user_id', user.id)
+                    .eq('status', 'ACTIVE')
+                    .order('created_at', { ascending: false })
+                    .limit(1);
 
-                    const latestPass = passes?.[0];
-                    if (!latestPass) {
-                        if (isMounted) setStatus({ loading: false, authorized: false });
-                        return;
-                    }
+                const latestPass = passes?.[0];
+                if (!latestPass) {
+                    if (isMounted) setStatus({ loading: false, authorized: false });
+                    return;
+                }
 
-                    const grantDate = new Date(latestPass.created_at);
-                    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-                    if (new Date() - grantDate >= thirtyDays) {
-                        if (isMounted) setStatus({ loading: false, authorized: false });
-                        return;
-                    }
+                const grantDate = new Date(latestPass.created_at);
+                const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+                if (new Date() - grantDate >= thirtyDays) {
+                    if (isMounted) setStatus({ loading: false, authorized: false });
+                    return;
                 }
 
                 if (isMounted) setStatus({ loading: false, authorized: true });

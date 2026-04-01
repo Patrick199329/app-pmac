@@ -33,13 +33,13 @@ const AccessGating = () => {
         return;
       }
 
-      // 2. Determine admin status immediately
-      const isAdmin = profile.role === 'ADMIN';
+      // 2. Determine internal status immediately
+      const isInternal = profile.role === 'ADMIN' || profile.role === 'PARTNER';
 
-      // 3. Check for active pass ONLY if not admin
-      let passActive = isAdmin;
+      // 3. Check for active pass ONLY if not internal
+      let passActive = isInternal;
 
-      if (!isAdmin) {
+      if (!isInternal) {
         const { data: passes } = await supabase
           .from('access_passes')
           .select('*')
@@ -86,7 +86,7 @@ const AccessGating = () => {
       if (latestAttempt && latestAttempt.status !== 'DONE') {
         const startDate = new Date(latestAttempt.started_at);
         const tenDays = 10 * 24 * 60 * 60 * 1000;
-        if (new Date() - startDate > tenDays && user.role !== 'ADMIN') {
+        if (new Date() - startDate > tenDays && user.role !== 'ADMIN' && user.role !== 'PARTNER') {
           alert('Seu prazo de 10 dias para concluir este teste expirou. Entre em contato com o suporte.');
           setProcessing(false);
           return;
@@ -94,7 +94,7 @@ const AccessGating = () => {
       }
 
       // Rule: If already finished (DONE), block redo during 30 days
-      if (latestAttempt?.status === 'DONE' && user.role !== 'ADMIN') {
+      if (latestAttempt?.status === 'DONE' && user.role !== 'ADMIN' && user.role !== 'PARTNER') {
         navigate(`/result/${latestAttempt.id}`);
         return;
       }
@@ -111,7 +111,7 @@ const AccessGating = () => {
       const secondToLast = results?.[1];
 
       // 24h Block Rule for Inconsistencies
-      if (lastResult?.status_copy === 'INCONSISTENT' && secondToLast?.status_copy === 'INCONSISTENT' && user.role !== 'ADMIN') {
+      if (lastResult?.status_copy === 'INCONSISTENT' && secondToLast?.status_copy === 'INCONSISTENT' && user.role !== 'ADMIN' && user.role !== 'PARTNER') {
         const lastDate = new Date(lastResult.created_at);
         const twentyFourHours = 24 * 60 * 60 * 1000;
         if (new Date() - lastDate < twentyFourHours) {

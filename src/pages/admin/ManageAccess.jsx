@@ -106,13 +106,16 @@ const ManageAccess = () => {
     }, []);
 
     const handleGrant = async (userId) => {
+        const user = userData.find(u => u.id === userId);
+        const planToGrant = user?.plan || 'SEM_PLANO';
+
         const { error } = await supabase
             .from('access_passes')
             .insert([{
                 user_id: userId,
                 status: 'ACTIVE',
                 granted_by_admin: true,
-                plan: 'BASICO'
+                plan: planToGrant
             }]);
         if (!error) fetchData();
     };
