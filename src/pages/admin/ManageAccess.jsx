@@ -25,7 +25,7 @@ const ManageAccess = () => {
     const [showResetModal, setShowResetModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
     const [creatingUser, setCreatingUser] = useState(false);
-    const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', plan: 'BASICO' });
+    const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', plan: 'BASICO', partnerId: '' });
     const [resetForm, setResetForm] = useState({ password: '' });
     const [currentProfile, setCurrentProfile] = useState(null);
     const [partnerQuota, setPartnerQuota] = useState(null);
@@ -84,14 +84,20 @@ const ManageAccess = () => {
         setCreatingUser(true);
         try {
             const { data, error } = await supabase.functions.invoke('admin-create-user', {
-                body: { ...newUserForm, action: 'create' }
+                body: { 
+                    ...newUserForm, 
+                    action: 'create',
+                    partnerId: currentProfile?.role === 'PARTNER' 
+                        ? currentProfile.id 
+                        : (newUserForm.partnerId || null)
+                }
             });
 
             if (error) throw error;
 
             alert("Usuário criado com sucesso!");
             setShowNewUserModal(false);
-            setNewUserForm({ name: '', email: '', password: '', plan: 'BASICO' });
+            setNewUserForm({ name: '', email: '', password: '', plan: 'BASICO', partnerId: '' });
             fetchData();
         } catch (err) {
             console.error("Create User Error:", err);
@@ -807,6 +813,20 @@ const ManageAccess = () => {
                                     )}
                                 </select>
                             </div>
+                            {currentProfile?.role === 'ADMIN' && (
+                                <div className="form-group">
+                                    <label>Vincular a Parceiro (Opcional)</label>
+                                    <select 
+                                        value={newUserForm.partnerId}
+                                        onChange={e => setNewUserForm({...newUserForm, partnerId: e.target.value})}
+                                    >
+                                        <option value="">Nenhum (Uso Direto)</option>
+                                        {allProfiles.filter(p => p.role === 'PARTNER').map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div className="modal-actions">
                                 <button type="button" className="btn-secondary" onClick={() => setShowNewUserModal(false)}>
                                     Cancelar

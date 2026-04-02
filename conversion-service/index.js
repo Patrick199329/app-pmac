@@ -6,7 +6,7 @@ const Docxtemplater = require('docxtemplater');
 
 const app = express();
 const upload = multer({
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
 const INTERNAL_TOKEN = process.env.INTERNAL_CONVERTER_TOKEN;
@@ -51,6 +51,16 @@ function patchXml(zip) {
         if (filename === 'word/document.xml') {
             // DOCX Blank Page fix: change page break type to avoid extra empty pages
             content = content.replace(/(<w:type\s+w:val=")(?:oddPage|evenPage)(")/g, '$1nextPage$2');
+
+            // 4. Force A4 Page Size (210mm x 297mm) - Twips: w=11906, h=16838
+            // This ensures results are A4 even if template is Letter or custom
+            content = content.replace(/<w:pgSz[^>]*\/>/g, '<w:pgSz w:w="11906" w:h="16838"/>');
+        }
+
+        // 5. ODT A4 Enforcement (Common in styles.xml or content.xml)
+        if (isOdt) {
+            content = content.replace(/fo:page-width="[^"]*"/g, 'fo:page-width="21.0cm"');
+            content = content.replace(/fo:page-height="[^"]*"/g, 'fo:page-height="29.7cm"');
         }
 
         zip.file(filename, content);
