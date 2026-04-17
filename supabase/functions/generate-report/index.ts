@@ -59,20 +59,51 @@ Deno.serve(async (req: Request) => {
             throw new Error(`Parâmetros incompletos. Recebido: ${JSON.stringify(body)}`);
         }
 
-        // 4. Poder de Admin: Definir o usuário alvo
         let finalUserId = user.id;
         if (targetUserId && targetUserId !== user.id) {
-            const { data: requesterProfile } = await supabase
+            console.log(`DEBUG: Verificando permissão para ${user.id} gerar relatório de ${targetUserId}`);
+            
+            const { data: requesterProfile, error: reqError } = await supabase
                 .from('profiles')
-                .select('role')
+                .select('role, id')
                 .eq('id', user.id)
                 .single();
 
-            if (requesterProfile?.role !== 'ADMIN') {
-                return new Response(JSON.stringify({ error: "Acesso negado: Apenas administradores podem gerar relatórios de terceiros." }), { status: 403, headers: corsHeaders });
+            if (reqError || !requesterProfile) {
+                console.error("ERRO AUTH: Perfil do solicitante não encontrado no banco.");
+                return new Response(JSON.stringify({ error: "Acesso negado: Perfil do solicitante não encontrado." }), { status: 403, headers: corsHeaders });
             }
-            finalUserId = targetUserId;
-            console.log(`ADMIN detectado. Gerando para usuário: ${finalUserId}`);
+
+            const role = (requesterProfile.role || '').toUpperCase();
+            console.log(`DEBUG: Role do solicitante: ${role}`);
+
+            if (role === 'ADMIN') {
+                finalUserId = targetUserId;
+                console.log(`LOG: Admin ${user.id} autorizado para ${targetUserId}`);
+            } else if (role === 'PARTNER') {
+                // Verificar se o usuário pertence a este parceiro
+                const { data: targetProfile, error: targetError } = await supabase
+                    .from('profiles')
+                    .select('partner_id')
+                    .eq('id', targetUserId)
+                    .single();
+                
+                if (targetError || !targetProfile) {
+                    console.error(`ERRO: Falha ao buscar perfil do alvo ${targetUserId}`);
+                    return new Response(JSON.stringify({ error: "Erro ao validar vínculo: Perfil do alvo não encontrado." }), { status: 403, headers: corsHeaders });
+                }
+
+                if (targetProfile.partner_id !== requesterProfile.id) {
+                    console.error(`NEGADO: Parceiro ${user.id} tentou acessar usuário ${targetUserId} vinculado ao parceiro ${targetProfile.partner_id}`);
+                    return new Response(JSON.stringify({ error: `Acesso negado: Este cliente pertence a outro parceiro ou é independente.` }), { status: 403, headers: corsHeaders });
+                }
+
+                finalUserId = targetUserId;
+                console.log(`LOG: Parceiro ${user.id} autorizado para seu cliente ${targetUserId}`);
+            } else {
+                console.error(`NEGADO: Usuário comum ${user.id} tentou gerar para ${targetUserId}`);
+                return new Response(JSON.stringify({ error: "Acesso negado: Permissão insuficiente para gerar relatórios de terceiros." }), { status: 403, headers: corsHeaders });
+            }
         }
 
         // 4. Busca do Relatório no Banco
@@ -104,7 +135,17 @@ Deno.serve(async (req: Request) => {
         if (downloadError) throw new Error(`Falha ao baixar template: ${downloadError.message}`);
 
         const { data: profile } = await supabase.from('profiles').select('name').eq('id', finalUserId).single();
-        const username = profile?.name || 'Usuário';
+        const fullName = profile?.name || 'Usuário';
+
+        // Lógica de Primeiro Nome (com suporte a compostos comuns no Brasil)
+        const nameParts = fullName.trim().split(/\s+/);
+        let firstName = nameParts[0] || 'Usuário';
+        
+        const compositePrefixes = ['ana', 'maria', 'joão', 'joao', 'josé', 'jose', 'luiz', 'luis', 'pedro', 'paulo', 'carlos', 'antonio', 'antônio', 'marcos', 'victor', 'vitor'];
+        
+        if (nameParts.length > 1 && compositePrefixes.includes(nameParts[0].toLowerCase())) {
+            firstName = `${nameParts[0]} ${nameParts[1]}`;
+        }
 
         // 5.5 Geração da Data Atual (pt-BR)
         const currentDate = new Date().toLocaleDateString('pt-BR', {
@@ -125,7 +166,8 @@ Deno.serve(async (req: Request) => {
         const assetExt = asset.file_path.split('.').pop() || 'docx';
         formData.append('file', new Blob([docxBuffer]), `template.${assetExt}`);
         
-        formData.append('username', username);
+        formData.append('fullName', fullName);
+        formData.append('firstName', firstName);
         formData.append('currentDate', currentDate);
 
         const convResponse = await fetch(`${converterUrl}/convert`, {
@@ -165,7 +207,7 @@ Deno.serve(async (req: Request) => {
             typeDisplay = body.archetypeTitle;
         }
 
-        const safeUsername = username.replace(/[<>:"/\\|?*]/g, ''); // Limpar caracteres inválidos para Windows
+        const safeUsername = fullName.replace(/[<>:"/\\|?*]/g, ''); // Limpar caracteres inválidos para Windows
         const customFileName = `PMAC® ${planDisplay} - ${typeDisplay} - ${safeUsername}.pdf`;
 
         // 7. Upload e Link Final

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase, getUserActivePlan } from '../services/supabase';
+import { useAppSettings } from '../context/AppSettingsContext';
 import confetti from 'canvas-confetti';
 import {
   BarChart2,
@@ -26,6 +27,8 @@ const ResultView = () => {
   const [generating, setGenerating] = useState(false);
   const [finalVideoUrl, setFinalVideoUrl] = useState(null);
   const [userRole, setUserRole] = useState('USER');
+  const [partnerId, setPartnerId] = useState(null);
+  const { settings } = useAppSettings();
 
   useEffect(() => {
     const fetchResult = async () => {
@@ -60,10 +63,13 @@ const ResultView = () => {
         if (currentUser) {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('role')
+            .select('role, partner_id')
             .eq('id', currentUser.id)
             .single();
-          if (profile) setUserRole(profile.role);
+          if (profile) {
+            setUserRole(profile.role);
+            setPartnerId(profile.partner_id);
+          }
         }
 
         const { data: res } = await supabase
@@ -295,7 +301,7 @@ const ResultView = () => {
           </div>
         )}
 
-        {result.status_copy === 'DONE' && finalVideoUrl && (
+        {result.status_copy === 'DONE' && finalVideoUrl && !(userRole === 'USER' && partnerId) && (
           <div className="final-video-section glass-panel fade-in">
             <div className="video-section-header">
                <Video size={20} className="accent-text" />
@@ -334,22 +340,38 @@ const ResultView = () => {
               <FileIcon size={40} color="var(--accent-primary)" />
             </div>
             <div className="delivery-content">
-              <p>{userPlan === 'OURO' ? 'Seu Relatório PMAC® está pronto para download.' : 'Seu Relatório PMAC® está pronto para download.'}</p>
-              {reportAsset ? (
-                <button
-                  onClick={handleDownloadReport}
-                  className="primary-btn download-btn"
-                  style={{ marginTop: '1rem', background: 'var(--accent-primary)' }}
-                  disabled={generating}
-                >
-                  <Download size={20} />
-                  <span>{reportAsset.asset_type === 'DOCX' ? 'Gerar Relatório Personalizado' : 'Baixar Relatório PDF'}</span>
-                </button>
-              ) : (
-                <div className="no-report-msg">
-                  <AlertTriangle size={16} />
-                  <span>Seu Relatório PMAC® está sendo processado. Disponível em breve.</span>
+              {/* Bloqueio para usuários de parceiros - Apenas a Mensagem das Configurações */}
+              {(userRole === 'USER' && partnerId) ? (
+                <div className="partner-restriction-msg">
+                  <p style={{ 
+                    color: 'var(--text-secondary)', 
+                    fontSize: '0.95rem', 
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap' // Mantém quebras de linha do banco
+                  }}>
+                    {settings.partner_report_message || 'Seu relatório está disponível com seu consultor/parceiro. Entre em contato para receber seu dossiê completo.'}
+                  </p>
                 </div>
+              ) : (
+                <>
+                  <p>{userPlan === 'OURO' ? 'Seu Relatório PMAC® está pronto para download.' : 'Seu Relatório PMAC® está pronto para download.'}</p>
+                  {reportAsset ? (
+                    <button
+                      onClick={handleDownloadReport}
+                      className="primary-btn download-btn"
+                      style={{ marginTop: '1rem', background: 'var(--accent-primary)' }}
+                      disabled={generating}
+                    >
+                      <Download size={20} />
+                      <span>{reportAsset.asset_type === 'DOCX' ? 'Gerar Relatório Personalizado' : 'Baixar Relatório PDF'}</span>
+                    </button>
+                  ) : (
+                    <div className="no-report-msg">
+                      <AlertTriangle size={16} />
+                      <span>Seu Relatório PMAC® está sendo processado. Disponível em breve.</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

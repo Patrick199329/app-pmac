@@ -30,7 +30,9 @@ export const AppSettingsProvider = ({ children }) => {
         tiebreaker_intro_item1: 'Este questionário curto de 7 perguntas ajudará a definir seu perfil predominante.',
         tiebreaker_intro_item2: 'Analise as frases com atenção redobrada.',
         tiebreaker_intro_item3: 'Escolha a que mais se aproxima da sua realidade atual.',
-        tiebreaker_intro_btn: 'Iniciar Desempate'
+        tiebreaker_intro_btn: 'Iniciar Desempate',
+        // Mensagem para usuários de parceiros
+        partner_report_message: 'Seu relatório está disponível com seu consultor/parceiro. Entre em contato para receber seu dossiê completo.'
     });
     const [loading, setLoading] = useState(true);
 

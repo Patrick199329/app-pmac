@@ -10,7 +10,8 @@ import {
     Moon,
     Check,
     Target,
-    ClipboardList
+    ClipboardList,
+    Info
 } from 'lucide-react';
 import LoadingOverlay from '../../components/LoadingOverlay';
 
@@ -20,6 +21,13 @@ const AppConfig = () => {
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
     const [activeTab, setActiveTab] = useState('visual');
+ 
+    // Sincronizar o formulário administrativo com as configurações globais quando elas terminarem de carregar
+    React.useEffect(() => {
+        if (!loading && settings) {
+            setForm(settings);
+        }
+    }, [settings, loading]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -321,6 +329,26 @@ const AppConfig = () => {
                                     <input type="text" className="glass-input" value={form.tiebreaker_intro_btn} onChange={e => setForm({ ...form, tiebreaker_intro_btn: e.target.value })} />
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    {/* Mensagem para Usuários de Parceiros */}
+                    <div className="config-section glass-panel" style={{ gridColumn: 'span 2' }}>
+                        <div className="section-title">
+                            <Info size={20} />
+                            <h3>Restrição de Relatório: Usuário de Parceiro</h3>
+                        </div>
+                        <div className="form-group">
+                            <label>Mensagem Exibida no lugar do Download</label>
+                            <textarea 
+                                className="glass-input" 
+                                value={form.partner_report_message || ''} 
+                                onChange={e => setForm({ ...form, partner_report_message: e.target.value })} 
+                                rows={3}
+                                placeholder="Texto que o cliente final verá caso o relatório esteja bloqueado para ele."
+                            />
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.5rem' }}>
+                                Esta mensagem aparecerá para usuários vinculados a parceiros, já que apenas o parceiro pode baixar o relatório.
+                            </p>
                         </div>
                     </div>
                 </div>

@@ -73,10 +73,11 @@ app.post('/convert', upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     try {
-        const username = (req.body.username || 'Usuário').trim();
+        const fullName = (req.body.fullName || req.body.username || 'Usuário').trim();
+        const firstName = (req.body.firstName || fullName.split(' ')[0] || 'Usuário').trim();
         const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
 
-        console.log(`[${new Date().toISOString()}] Converting for: ${username} (Format: ${req.file.originalname})`);
+        console.log(`[${new Date().toISOString()}] Converting for: ${fullName} (FirstName: ${firstName})`);
 
         const zip = new PizZip(req.file.buffer);
         
@@ -84,7 +85,11 @@ app.post('/convert', upload.single('file'), (req, res) => {
         const isOdt = patchXml(zip);
 
         const data = {
-            NOME: username, nome: username.toLowerCase(), NAME: username.toUpperCase(),
+            // Nome Curto
+            NOME: firstName, nome: firstName.toLowerCase(), Nome: firstName, NAME: firstName.toUpperCase(),
+            // Nome Completo
+            NOME_COMPLETO: fullName, nome_completo: fullName.toLowerCase(), Nome_Completo: fullName, NAME_FULL: fullName.toUpperCase(),
+            // Datas
             DATA: currentDate, data: currentDate, Data: currentDate, DATE: currentDate, date: currentDate,
         };
 

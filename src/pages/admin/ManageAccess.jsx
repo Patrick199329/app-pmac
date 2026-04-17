@@ -79,6 +79,30 @@ const ManageAccess = () => {
         setLoading(false);
     };
 
+    const formatProfile = (u) => {
+        if (u.latest_result_status !== 'DONE') return '-';
+        
+        const typeNames = {
+            1: 'Perfeccionista',
+            2: 'Ajudador',
+            3: 'Realizador',
+            4: 'Emocional',
+            5: 'Analítico',
+            6: 'Questionador',
+            7: 'Entusiasta',
+            8: 'Dominador',
+            9: 'Mediador'
+        };
+
+        const baseTypeName = typeNames[u.latest_result_type] || '';
+
+        if (u.plan !== 'OURO' || !u.latest_archetype_code) {
+            return baseTypeName;
+        }
+        
+        return u.latest_archetype_title || baseTypeName;
+    };
+
     const handleCreateUser = async (e) => {
         e.preventDefault();
         setCreatingUser(true);
@@ -319,19 +343,30 @@ const ManageAccess = () => {
             }
         } catch (err) {
             console.error("Admin Report Error:", err);
-            alert(`Falha ao gerar relatório: ${err.message}`);
+            
+            // Tenta extrair a mensagem de erro do corpo da resposta (caso seja JSON da Edge Function)
+            let displayMessage = err.message;
+            if (err.context?.json?.error) {
+                displayMessage = err.context.json.error;
+            } else if (err.details) {
+                displayMessage = err.details;
+            }
+
+            alert(`Falha ao gerar relatório: ${displayMessage}`);
         } finally {
             setGeneratingReport(false);
         }
     };
 
-    const filtered = userData.filter(u =>
-        u.name?.toLowerCase().includes(search.toLowerCase()) ||
-        u.email?.toLowerCase().includes(search.toLowerCase()) ||
-        u.id.toLowerCase().includes(search.toLowerCase()) ||
-        `T${u.latest_result_type}`.toLowerCase().includes(search.toLowerCase()) ||
-        u.latest_archetype_title?.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = userData.filter(u => {
+        const formatted = formatProfile(u);
+        return (
+            u.name?.toLowerCase().includes(search.toLowerCase()) ||
+            u.email?.toLowerCase().includes(search.toLowerCase()) ||
+            u.id.toLowerCase().includes(search.toLowerCase()) ||
+            formatted.toLowerCase().includes(search.toLowerCase())
+        );
+    });
 
     const getDaysRemaining = (expiryDate) => {
         if (!expiryDate) return null;
@@ -693,7 +728,7 @@ const ManageAccess = () => {
                                         <div style={{ fontSize: '0.8rem' }}>
                                             {u.latest_result_status === 'DONE' ? (
                                                 <div className="profile-pill">
-                                                    <span className="profile-type">T{u.latest_result_type}</span>
+                                                    <span className="profile-type">{formatProfile(u)}</span>
                                                 </div>
                                             ) : <span style={{ color: 'var(--text-tertiary)' }}>-</span>}
                                         </div>
