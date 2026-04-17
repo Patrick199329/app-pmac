@@ -74,6 +74,18 @@ app.post('/convert', upload.single('file'), (req, res) => {
             replaceOdtPlaceholders(zip, data);
             modifiedBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
         } else {
+            // DOCX: desfragmenta tags que o Word pode ter quebrado em múltiplos runs XML
+            // Ex: [NOME_COMPLETO] pode virar <w:t>[NOME</w:t><w:t>_COMPLETO</w:t><w:t>]</w:t>
+            const docXmlFile = zip.file('word/document.xml');
+            if (docXmlFile) {
+                let docXml = docXmlFile.asText();
+                docXml = docXml.replace(/\[([^\]]+)\]/g, (match, inner) => {
+                    const cleaned = inner.replace(/<[^>]+>/g, '').trim();
+                    return cleaned ? `[${cleaned}]` : match;
+                });
+                zip.file('word/document.xml', docXml);
+            }
+
             // DOCX: docxtemplater com delimitadores [TAG]
             const doc = new Docxtemplater(zip, {
                 delimiters: { start: '[', end: ']' },
