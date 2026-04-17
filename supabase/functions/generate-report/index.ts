@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
         let finalUserId = user.id;
         if (targetUserId && targetUserId !== user.id) {
             console.log(`DEBUG: Verificando permissão para ${user.id} gerar relatório de ${targetUserId}`);
-            
+
             const { data: requesterProfile, error: reqError } = await supabase
                 .from('profiles')
                 .select('role, id')
@@ -87,7 +87,7 @@ Deno.serve(async (req: Request) => {
                     .select('partner_id')
                     .eq('id', targetUserId)
                     .single();
-                
+
                 if (targetError || !targetProfile) {
                     console.error(`ERRO: Falha ao buscar perfil do alvo ${targetUserId}`);
                     return new Response(JSON.stringify({ error: "Erro ao validar vínculo: Perfil do alvo não encontrado." }), { status: 403, headers: corsHeaders });
@@ -140,34 +140,21 @@ Deno.serve(async (req: Request) => {
             console.error(`ERRO PERFIL: Falha ao buscar perfil para ${finalUserId}: ${profileError?.message || 'Não encontrado'}`);
         }
 
-        // Prioridade: profiles.name → user_metadata (name ou full_name) → 'Usuário'
-        let fullName = (profile?.name || '').trim();
-
-        const INVALID_NAMES = ['usuario', 'usuário', 'user'];
-        if (!fullName || INVALID_NAMES.includes(fullName.toLowerCase())) {
-            console.warn(`AVISO: Nome inválido/ausente no profiles para ${finalUserId} ("${fullName}"). Tentando user_metadata...`);
-            // Usa metadata do usuário autenticado (funciona quando gera o próprio relatório)
-            if (user.id === finalUserId) {
-                const meta = (user.user_metadata || {}) as Record<string, string>;
-                const metaName = (meta.name || meta.full_name || '').trim();
-                if (metaName) {
-                    fullName = metaName;
-                    console.log(`LOG: Nome recuperado do user_metadata: "${fullName}"`);
-                    // Corrige o profiles para futuras gerações
-                    await supabase.from('profiles').update({ name: fullName }).eq('id', finalUserId);
-                }
-            }
-        }
-
-        fullName = fullName || 'Usuário';
+        // Força o nome do perfil se existir, senão usa 'Usuário'
+        const fullName = (profile?.name || '').trim() || 'Usuário';
         console.log(`LOG v2.5: Identificado para ID=${finalUserId}, Nome="${fullName}"`);
+
+        // Log extra para conferir se 'Usuário' está vindo de uma falha de banco
+        if (fullName === 'Usuário') {
+            console.warn(`AVISO: O nome para o ID ${finalUserId} retornou 'Usuário'. Verifique se este ID existe na tabela 'profiles'.`);
+        }
 
         // Lógica de Primeiro Nome (com suporte a compostos comuns no Brasil)
         const nameParts = fullName.split(/\s+/).filter(p => p.length > 0);
         let firstName = nameParts[0] || 'Usuário';
-        
+
         const compositePrefixes = ['ana', 'maria', 'joão', 'joao', 'josé', 'jose', 'luiz', 'luis', 'pedro', 'paulo', 'carlos', 'antonio', 'antônio', 'marcos', 'victor', 'vitor'];
-        
+
         if (nameParts.length > 1 && compositePrefixes.includes(nameParts[0].toLowerCase())) {
             firstName = `${nameParts[0]} ${nameParts[1]}`;
         }
@@ -186,11 +173,11 @@ Deno.serve(async (req: Request) => {
         console.log(`DEBUG: Enviando ao conversor. fullName="${fullName}", firstName="${firstName}", data="${currentDate}"`);
         const formData = new FormData();
         const docxBuffer = await docxData.arrayBuffer();
-        
+
         // Detectar extensão real do template para o conversor identificar (odt ou docx)
         const assetExt = asset.file_path.split('.').pop() || 'docx';
         formData.append('file', new Blob([docxBuffer]), `template.${assetExt}`);
-        
+
         formData.append('fullName', fullName);
         formData.append('firstName', firstName);
         formData.append('currentDate', currentDate);
@@ -210,7 +197,7 @@ Deno.serve(async (req: Request) => {
 
         // 6. Nome Personalizado do Arquivo
         const planDisplay = userPlan === 'OURO' ? 'Ouro' : 'Básica';
-        
+
         // Mapeamento de Tipos
         const typeMap: Record<string, string> = {
             'T1': 'Perfeccionista',
@@ -226,7 +213,7 @@ Deno.serve(async (req: Request) => {
 
         const baseTypeCode = subtypeCode.substring(0, 2); // Ex: T9A -> T9
         let typeDisplay = typeMap[baseTypeCode] || subtypeCode;
-        
+
         // Se for plano Ouro e tiver subtitulo (Subtipo), podemos tentar usar o nome do arquétipo se enviado
         if (userPlan === 'OURO' && body.archetypeTitle) {
             typeDisplay = body.archetypeTitle;
