@@ -3,7 +3,7 @@
 Aplicativo web para execução de questionário comportamental PMAC (T1-T9).
 
 ## Tecnologias
-- React + Vite
+- React + Vite 
 - Supabase (Auth, Database, RLS)
 - Vanilla CSS (Premium Dark Theme)
 - Lucide React (Icons)
