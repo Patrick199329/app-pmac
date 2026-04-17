@@ -38,3 +38,4 @@ Aplicativo web para execução de questionário comportamental PMAC (T1-T9).
 ## Configuração do Banco de Dados
 O script de migração já foi aplicado ao projeto Supabase `dxgxdgnuzimhgmwhdkcd`.
 Caso precise rodar localmente, as chaves anônimas estão no arquivo `src/services/supabase.js`.
+ 
