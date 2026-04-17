@@ -320,16 +320,32 @@ const ManageAccess = () => {
             console.log(`Admin Gerando (${isOuro ? 'OURO' : 'BASICO'}): ${subtypeCode} para ${user.name}`);
 
             const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
 
-            const { data, error } = await supabase.functions.invoke('generate-report', {
-                body: {
+            const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dxgxdgnuzimhgmwhdkcd.supabase.co';
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4Z3hkZ251emltaGdtd2hka2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODkxMzYsImV4cCI6MjA4NzM2NTEzNn0.Dv5hMleFScPsE3xGWVdwM1qOD1Dgf6CZQ9DuNF_5C8U';
+
+            const response = await fetch(`${baseUrl}/functions/v1/generate-report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': anonKey
+                },
+                body: JSON.stringify({
                     subtypeCode,
                     userPlan: user.plan || 'BASICO',
                     targetUserId: user.id
-                }
+                })
             });
 
-            if (error) throw error;
+            const resText = await response.text().catch(() => '{}');
+            let data = null;
+            try { data = JSON.parse(resText); } catch (_) {}
+
+            if (!response.ok) {
+                throw new Error(data?.error || data?.message || `Erro HTTP ${response.status}`);
+            }
 
             if (data?.url) {
                 const link = document.createElement('a');
