@@ -342,16 +342,17 @@ const ManageAccess = () => {
                 throw new Error("URL de download não recebida.");
             }
         } catch (err) {
-            console.error("Admin Report Error:", err);
-            
-            // Tenta extrair a mensagem de erro do corpo da resposta (caso seja JSON da Edge Function)
+            // err.context é um objeto Response (FunctionsHttpError) — json() é assíncrono
             let displayMessage = err.message;
-            if (err.context?.json?.error) {
-                displayMessage = err.context.json.error;
-            } else if (err.details) {
-                displayMessage = err.details;
-            }
-
+            try {
+                if (err.context && typeof err.context.json === 'function') {
+                    const body = await err.context.json();
+                    displayMessage = body?.error || body?.message || body?.details || err.message;
+                } else if (err.details) {
+                    displayMessage = err.details;
+                }
+            } catch (_) {}
+            console.error("Admin Report Error:", displayMessage, err);
             alert(`Falha ao gerar relatório: ${displayMessage}`);
         } finally {
             setGeneratingReport(false);
