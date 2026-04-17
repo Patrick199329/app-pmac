@@ -140,20 +140,22 @@ Deno.serve(async (req: Request) => {
             console.error(`ERRO PERFIL: Falha ao buscar perfil para ${finalUserId}: ${profileError?.message || 'Não encontrado'}`);
         }
 
-        // Prioridade: profiles.name → user_metadata.name → user_metadata.full_name → 'Usuário'
+        // Prioridade: profiles.name → user_metadata (name ou full_name) → 'Usuário'
         let fullName = (profile?.name || '').trim();
 
-        const INVALID_NAMES = ['usuario', 'usuário', 'user', ''];
+        const INVALID_NAMES = ['usuario', 'usuário', 'user'];
         if (!fullName || INVALID_NAMES.includes(fullName.toLowerCase())) {
-            console.warn(`AVISO: Nome inválido/ausente no profiles para ${finalUserId} ("${fullName}"). Buscando em auth metadata...`);
-            const { data: authUserData } = await supabase.auth.admin.getUserById(finalUserId);
-            const meta = authUserData?.user?.user_metadata || {};
-            const metaName = (meta.name || meta.full_name || '').trim();
-            if (metaName) {
-                fullName = metaName;
-                console.log(`LOG: Nome recuperado do auth metadata: "${fullName}"`);
-                // Atualiza o profiles para evitar nova consulta futura
-                await supabase.from('profiles').update({ name: fullName }).eq('id', finalUserId);
+            console.warn(`AVISO: Nome inválido/ausente no profiles para ${finalUserId} ("${fullName}"). Tentando user_metadata...`);
+            // Usa metadata do usuário autenticado (funciona quando gera o próprio relatório)
+            if (user.id === finalUserId) {
+                const meta = (user.user_metadata || {}) as Record<string, string>;
+                const metaName = (meta.name || meta.full_name || '').trim();
+                if (metaName) {
+                    fullName = metaName;
+                    console.log(`LOG: Nome recuperado do user_metadata: "${fullName}"`);
+                    // Corrige o profiles para futuras gerações
+                    await supabase.from('profiles').update({ name: fullName }).eq('id', finalUserId);
+                }
             }
         }
 
