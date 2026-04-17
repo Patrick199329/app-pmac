@@ -134,11 +134,17 @@ Deno.serve(async (req: Request) => {
 
         if (downloadError) throw new Error(`Falha ao baixar template: ${downloadError.message}`);
 
-        const { data: profile } = await supabase.from('profiles').select('name').eq('id', finalUserId).single();
-        const fullName = profile?.name || 'Usuário';
+        const { data: profile, error: profileError } = await supabase.from('profiles').select('name').eq('id', finalUserId).single();
+        
+        if (profileError) {
+            console.error(`ERRO PERFIL: Falha ao buscar perfil para ${finalUserId}: ${profileError.message}`);
+        }
+
+        const fullName = (profile?.name || '').trim() || 'Usuário';
+        console.log(`LOG: Identificado para relatório: ID=${finalUserId}, Nome="${fullName}"`);
 
         // Lógica de Primeiro Nome (com suporte a compostos comuns no Brasil)
-        const nameParts = fullName.trim().split(/\s+/);
+        const nameParts = fullName.split(/\s+/).filter(p => p.length > 0);
         let firstName = nameParts[0] || 'Usuário';
         
         const compositePrefixes = ['ana', 'maria', 'joão', 'joao', 'josé', 'jose', 'luiz', 'luis', 'pedro', 'paulo', 'carlos', 'antonio', 'antônio', 'marcos', 'victor', 'vitor'];

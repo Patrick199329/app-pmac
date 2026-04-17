@@ -40,17 +40,24 @@ function patchXml(zip) {
         
         let content = file.asText();
 
-        // 0. Placeholder Un-splitter: [ N<t>OME </t>] -> [NOME]
-        // Removes any XML tags that appear between square brackets.
+        // 0. Super Aggressive Placeholder Un-splitter: [ N<t>OME </t>] -> [NOME]
+        // Matches everything from [ to ] and removes internal tags.
+        // We use a non-greedy match [.*?] but we need to span multiple lines/tags.
         content = content.replace(/\[([^\]]+)\]/g, (match, p1) => {
+            // Remove ALL tags inside the brackets
             const cleaned = p1.replace(/<[^>]+>/g, '');
-            return `[${cleaned}]`;
+            // Only return the cleaned version if it contains actual characters (likely a tag)
+            if (cleaned.trim().length > 0) {
+                console.log(`[DEBUG] Fragmento reparado em ${filename}: "${p1.substring(0, 20)}..." -> "[${cleaned}]"`);
+                return `[${cleaned}]`;
+            }
+            return match;
         });
 
         // 1. Normalize placeholders [TAG] -> {TAG}
         content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
 
-        // ... rest of the patching logic (font and page enforcement)
+        // Structural fixes (Font, Page Size)
         content = content.replace(/Trebuchet MS/g, 'Calibri');
         content = content.replace(/Times New Roman/g, 'Calibri');
 
@@ -78,18 +85,18 @@ app.post('/convert', upload.single('file'), (req, res) => {
         const firstName = (req.body.firstName || fullName.split(' ')[0] || 'Usuário').trim();
         const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
 
-        console.log(`[${new Date().toISOString()}] RECV: fullName="${fullName}", firstName="${firstName}", data="${currentDate}"`);
+        console.log(`[${new Date().toISOString()}] RECV: fullName="${fullName}", firstName="${firstName}"`);
 
         const zip = new PizZip(req.file.buffer);
         const isOdt = patchXml(zip);
 
+        // Standard tags (Case-insensitive matching to be safe)
         const data = {
-            NOME_COMPLETO: fullName, nome_completo: fullName.toLowerCase(), Nome_Completo: fullName, NAME_FULL: fullName.toUpperCase(),
-            NOME: firstName, nome: firstName.toLowerCase(), Nome: firstName, NAME: firstName.toUpperCase(),
-            DATA: currentDate, data: currentDate, Data: currentDate, DATE: currentDate, date: currentDate,
+            NOME_COMPLETO: fullName,
+            NOME: firstName,
+            DATA: currentDate
         };
 
-        // Sort keys by length descending to process longest tags (NOME_COMPLETO) first
         const sortedKeys = Object.keys(data).sort((a, b) => b.length - a.length);
 
         const filesToProcess = isOdt 
@@ -101,6 +108,8 @@ app.post('/convert', upload.single('file'), (req, res) => {
             if (!file) return;
             
             let content = file.asText();
+            let changed = false;
+
             sortedKeys.forEach(key => {
                 const value = data[key];
                 const escapedValue = String(value)
@@ -110,11 +119,17 @@ app.post('/convert', upload.single('file'), (req, res) => {
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&apos;');
                 
-                // Replace both {TAG} and [TAG] formats
-                content = content.replace(new RegExp(`\\{${key}\\}`, 'g'), escapedValue);
-                content = content.replace(new RegExp(`\\[${key}\\]`, 'g'), escapedValue);
+                // Matches {TAG} or [TAG], Case-Insensitive logic for the placeholder but using our UpperCase key values
+                const tagPattern = new RegExp(`[\\{\\[]${key}[\\}\\]]`, 'gi');
+                
+                if (tagPattern.test(content)) {
+                    content = content.replace(tagPattern, escapedValue);
+                    console.log(`[DEBUG] Substituído [${key}] em ${xmlPath}`);
+                    changed = true;
+                }
             });
-            zip.file(xmlPath, content);
+
+            if (changed) zip.file(xmlPath, content);
         });
 
         const modifiedBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
