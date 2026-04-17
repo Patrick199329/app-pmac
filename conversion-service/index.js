@@ -40,24 +40,25 @@ function patchXml(zip) {
         
         let content = file.asText();
 
+        // 0. Placeholder Un-splitter: [ N<t>OME </t>] -> [NOME]
+        // Removes any XML tags that appear between square brackets.
+        content = content.replace(/\[([^\]]+)\]/g, (match, p1) => {
+            const cleaned = p1.replace(/<[^>]+>/g, '');
+            return `[${cleaned}]`;
+        });
+
         // 1. Normalize placeholders [TAG] -> {TAG}
         content = content.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '{$1}');
 
-        // 2. Font replacement (Targets fallback Carlito/Caladea on Linux)
+        // ... rest of the patching logic (font and page enforcement)
         content = content.replace(/Trebuchet MS/g, 'Calibri');
         content = content.replace(/Times New Roman/g, 'Calibri');
 
-        // 3. Structural Fixes
         if (filename === 'word/document.xml') {
-            // DOCX Blank Page fix: change page break type to avoid extra empty pages
             content = content.replace(/(<w:type\s+w:val=")(?:oddPage|evenPage)(")/g, '$1nextPage$2');
-
-            // 4. Force A4 Page Size (210mm x 297mm) - Twips: w=11906, h=16838
-            // This ensures results are A4 even if template is Letter or custom
             content = content.replace(/<w:pgSz[^>]*\/>/g, '<w:pgSz w:w="11906" w:h="16838"/>');
         }
 
-        // 5. ODT A4 Enforcement (Common in styles.xml or content.xml)
         if (isOdt) {
             content = content.replace(/fo:page-width="[^"]*"/g, 'fo:page-width="21.0cm"');
             content = content.replace(/fo:page-height="[^"]*"/g, 'fo:page-height="29.7cm"');
@@ -77,40 +78,31 @@ app.post('/convert', upload.single('file'), (req, res) => {
         const firstName = (req.body.firstName || fullName.split(' ')[0] || 'Usuário').trim();
         const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
 
-        console.log(`[${new Date().toISOString()}] Converting for: ${fullName} (FirstName: ${firstName})`);
+        console.log(`[${new Date().toISOString()}] RECV: fullName="${fullName}", firstName="${firstName}", data="${currentDate}"`);
 
         const zip = new PizZip(req.file.buffer);
-        
-        // 1. Universal Patching (also detects format)
         const isOdt = patchXml(zip);
 
         const data = {
-            // Nome Curto
-            NOME: firstName, nome: firstName.toLowerCase(), Nome: firstName, NAME: firstName.toUpperCase(),
-            // Nome Completo
             NOME_COMPLETO: fullName, nome_completo: fullName.toLowerCase(), Nome_Completo: fullName, NAME_FULL: fullName.toUpperCase(),
-            // Datas
+            NOME: firstName, nome: firstName.toLowerCase(), Nome: firstName, NAME: firstName.toUpperCase(),
             DATA: currentDate, data: currentDate, Data: currentDate, DATE: currentDate, date: currentDate,
         };
 
-        console.log(`[DEBUG] Processor: Universal Manual XML (isOdt: ${isOdt})`);
+        // Sort keys by length descending to process longest tags (NOME_COMPLETO) first
+        const sortedKeys = Object.keys(data).sort((a, b) => b.length - a.length);
 
-        // 2. Universal Manual Replacement
         const filesToProcess = isOdt 
             ? ['content.xml', 'styles.xml'] 
-            : [
-                'word/document.xml', 'word/styles.xml', 
-                'word/header1.xml', 'word/header2.xml', 'word/header3.xml', 
-                'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'
-              ];
+            : ['word/document.xml', 'word/styles.xml', 'word/header1.xml', 'word/header2.xml', 'word/header3.xml', 'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'];
 
         filesToProcess.forEach(xmlPath => {
             const file = zip.file(xmlPath);
             if (!file) return;
             
             let content = file.asText();
-            for (const [key, value] of Object.entries(data)) {
-                // Support both {TAG} and [TAG] (patchXml usually converts [ to {)
+            sortedKeys.forEach(key => {
+                const value = data[key];
                 const escapedValue = String(value)
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
@@ -118,22 +110,20 @@ app.post('/convert', upload.single('file'), (req, res) => {
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&apos;');
                 
-                // Replace {KEY} or [KEY]
+                // Replace both {TAG} and [TAG] formats
                 content = content.replace(new RegExp(`\\{${key}\\}`, 'g'), escapedValue);
                 content = content.replace(new RegExp(`\\[${key}\\]`, 'g'), escapedValue);
-            }
+            });
             zip.file(xmlPath, content);
         });
 
         const modifiedBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 
-        // 3. Conversion to PDF
         libre.convert(modifiedBuffer, '.pdf', undefined, (err, pdfBuffer) => {
             if (err) {
                 console.error("Conversion Error:", err);
                 return res.status(500).json({ error: 'Conversion failed' });
             }
-            
             res.setHeader('Content-Type', 'application/pdf');
             res.send(pdfBuffer);
         });

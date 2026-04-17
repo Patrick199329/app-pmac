@@ -158,7 +158,7 @@ Deno.serve(async (req: Request) => {
         const converterUrl = Deno.env.get('INTERNAL_CONVERTER_URL');
         const converterToken = Deno.env.get('INTERNAL_CONVERTER_TOKEN');
 
-        console.log(`DEBUG: Enviando ao conversor (Data: ${currentDate})...`);
+        console.log(`DEBUG: Enviando ao conversor. fullName="${fullName}", firstName="${firstName}", data="${currentDate}"`);
         const formData = new FormData();
         const docxBuffer = await docxData.arrayBuffer();
         
