@@ -77,11 +77,20 @@ function patchXml(zip) {
     return isOdt;
 }
 
+function createFragmentedRegex(key) {
+    // Escapa caracteres especiais mas permite qualquer tag XML entre cada letra da tag
+    // Ex: para [NOME], permite [<w:t>]N[</w:t>]O...
+    const chars = key.split('');
+    const tagContent = chars.map(c => `${c === '_' ? '_' : c}(?:<[^>]+>)*`).join('');
+    // Procura por { ou [ seguido da sequencia fragmentada seguida de } ou ]
+    return new RegExp(`([\\{\\[])(?:<[^>]+>)*${tagContent}([\\}\\]])`, 'gi');
+}
+
 app.post('/convert', upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     try {
-        const fullName = (req.body.fullName || req.body.username || 'Usuário').trim();
+        const fullName = (req.body.fullName || 'Usuário').trim();
         const firstName = (req.body.firstName || fullName.split(' ')[0] || 'Usuário').trim();
         const currentDate = (req.body.currentDate || new Date().toLocaleDateString('pt-BR')).trim();
 
@@ -90,7 +99,6 @@ app.post('/convert', upload.single('file'), (req, res) => {
         const zip = new PizZip(req.file.buffer);
         const isOdt = patchXml(zip);
 
-        // Standard tags (Case-insensitive matching to be safe)
         const data = {
             NOME_COMPLETO: fullName,
             NOME: firstName,
@@ -119,12 +127,14 @@ app.post('/convert', upload.single('file'), (req, res) => {
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&apos;');
                 
-                // Matches {TAG} or [TAG], Case-Insensitive logic for the placeholder but using our UpperCase key values
-                const tagPattern = new RegExp(`[\\{\\[]${key}[\\}\\]]`, 'gi');
+                const fragmentRegex = createFragmentedRegex(key);
                 
-                if (tagPattern.test(content)) {
-                    content = content.replace(tagPattern, escapedValue);
-                    console.log(`[DEBUG] Substituído [${key}] em ${xmlPath}`);
+                if (fragmentRegex.test(content)) {
+                    // Substituimos mantendo os colchetes originais (ou chaves)
+                    content = content.replace(fragmentRegex, (match, openBracket, closeBracket) => {
+                        console.log(`[DEBUG] Fragmento casado: "${match.substring(0, 30)}..." em ${xmlPath}`);
+                        return `${openBracket}${escapedValue}${closeBracket}`;
+                    });
                     changed = true;
                 }
             });

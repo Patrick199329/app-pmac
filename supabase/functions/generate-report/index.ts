@@ -136,12 +136,18 @@ Deno.serve(async (req: Request) => {
 
         const { data: profile, error: profileError } = await supabase.from('profiles').select('name').eq('id', finalUserId).single();
         
-        if (profileError) {
-            console.error(`ERRO PERFIL: Falha ao buscar perfil para ${finalUserId}: ${profileError.message}`);
+        if (profileError || !profile) {
+            console.error(`ERRO PERFIL: Falha ao buscar perfil para ${finalUserId}: ${profileError?.message || 'Não encontrado'}`);
         }
 
+        // Força o nome do perfil se existir, senão usa 'Usuário'
         const fullName = (profile?.name || '').trim() || 'Usuário';
-        console.log(`LOG: Identificado para relatório: ID=${finalUserId}, Nome="${fullName}"`);
+        console.log(`LOG v2.5: Identificado para ID=${finalUserId}, Nome="${fullName}"`);
+        
+        // Log extra para conferir se 'Usuário' está vindo de uma falha de banco
+        if (fullName === 'Usuário') {
+            console.warn(`AVISO: O nome para o ID ${finalUserId} retornou 'Usuário'. Verifique se este ID existe na tabela 'profiles'.`);
+        }
 
         // Lógica de Primeiro Nome (com suporte a compostos comuns no Brasil)
         const nameParts = fullName.split(/\s+/).filter(p => p.length > 0);
