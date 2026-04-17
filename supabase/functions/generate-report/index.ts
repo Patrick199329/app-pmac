@@ -135,19 +135,30 @@ Deno.serve(async (req: Request) => {
         if (downloadError) throw new Error(`Falha ao baixar template: ${downloadError.message}`);
 
         const { data: profile, error: profileError } = await supabase.from('profiles').select('name').eq('id', finalUserId).single();
-        
+
         if (profileError || !profile) {
             console.error(`ERRO PERFIL: Falha ao buscar perfil para ${finalUserId}: ${profileError?.message || 'Não encontrado'}`);
         }
 
-        // Força o nome do perfil se existir, senão usa 'Usuário'
-        const fullName = (profile?.name || '').trim() || 'Usuário';
-        console.log(`LOG v2.5: Identificado para ID=${finalUserId}, Nome="${fullName}"`);
-        
-        // Log extra para conferir se 'Usuário' está vindo de uma falha de banco
-        if (fullName === 'Usuário') {
-            console.warn(`AVISO: O nome para o ID ${finalUserId} retornou 'Usuário'. Verifique se este ID existe na tabela 'profiles'.`);
+        // Prioridade: profiles.name → user_metadata.name → user_metadata.full_name → 'Usuário'
+        let fullName = (profile?.name || '').trim();
+
+        const INVALID_NAMES = ['usuario', 'usuário', 'user', ''];
+        if (!fullName || INVALID_NAMES.includes(fullName.toLowerCase())) {
+            console.warn(`AVISO: Nome inválido/ausente no profiles para ${finalUserId} ("${fullName}"). Buscando em auth metadata...`);
+            const { data: authUserData } = await supabase.auth.admin.getUserById(finalUserId);
+            const meta = authUserData?.user?.user_metadata || {};
+            const metaName = (meta.name || meta.full_name || '').trim();
+            if (metaName) {
+                fullName = metaName;
+                console.log(`LOG: Nome recuperado do auth metadata: "${fullName}"`);
+                // Atualiza o profiles para evitar nova consulta futura
+                await supabase.from('profiles').update({ name: fullName }).eq('id', finalUserId);
+            }
         }
+
+        fullName = fullName || 'Usuário';
+        console.log(`LOG v2.5: Identificado para ID=${finalUserId}, Nome="${fullName}"`);
 
         // Lógica de Primeiro Nome (com suporte a compostos comuns no Brasil)
         const nameParts = fullName.split(/\s+/).filter(p => p.length > 0);

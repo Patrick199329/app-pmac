@@ -130,10 +130,9 @@ app.post('/convert', upload.single('file'), (req, res) => {
                 const fragmentRegex = createFragmentedRegex(key);
                 
                 if (fragmentRegex.test(content)) {
-                    // Substituimos mantendo os colchetes originais (ou chaves)
-                    content = content.replace(fragmentRegex, (match, openBracket, closeBracket) => {
+                    content = content.replace(fragmentRegex, (match) => {
                         console.log(`[DEBUG] Fragmento casado: "${match.substring(0, 30)}..." em ${xmlPath}`);
-                        return `${openBracket}${escapedValue}${closeBracket}`;
+                        return escapedValue;
                     });
                     changed = true;
                 }

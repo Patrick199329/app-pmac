@@ -44,6 +44,7 @@ const Signup = () => {
                 password,
                 options: {
                     data: {
+                        name: name,
                         full_name: name
                     }
                 }
