@@ -74,24 +74,40 @@ app.post('/convert', upload.single('file'), (req, res) => {
             replaceOdtPlaceholders(zip, data);
             modifiedBuffer = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
         } else {
-            // DOCX: desfragmenta tags que o Word pode ter quebrado em múltiplos runs XML
-            // Ex: [NOME_COMPLETO] pode virar <w:t>[NOME</w:t><w:t>_COMPLETO</w:t><w:t>]</w:t>
-            const docXmlFile = zip.file('word/document.xml');
-            if (docXmlFile) {
-                let docXml = docXmlFile.asText();
-                docXml = docXml.replace(/\[([^\]]+)\]/g, (match, inner) => {
-                    const cleaned = inner.replace(/<[^>]+>/g, '').trim();
-                    return cleaned ? `[${cleaned}]` : match;
-                });
-                zip.file('word/document.xml', docXml);
-            }
+            // DOCX: Limpeza de fragmentação em TODOS os arquivos XML (Corpo, Cabeçalhos, Rodapés)
+            const xmlFiles = zip.file(/\.xml$/);
+            xmlFiles.forEach(file => {
+                const fileName = file.name;
+                // Processamos apenas arquivos estruturais do Word
+                if (fileName.startsWith('word/')) {
+                    let xmlContent = file.asText();
+                    const originalContent = xmlContent;
+                    
+                    // Regex robusto: busca [ tags ] mesmo que o Word as quebre em múltiplos <w:t>
+                    // Ex: [NOME</w:t></w:r><w:r><w:t>_COMPLETO] -> [NOME_COMPLETO]
+                    xmlContent = xmlContent.replace(/\[([^\]]+)\]/g, (match, inner) => {
+                        if (!inner.includes('<')) return match; // Já está limpo
+                        
+                        const cleaned = inner.replace(/<[^>]+>/g, '').trim();
+                        // Se sobrou algo após remover tags, unificamos
+                        if (cleaned) {
+                            console.log(`[DEFRAG] "${match.substring(0, 20)}..." -> "[${cleaned}]" em ${fileName}`);
+                            return `[${cleaned}]`;
+                        }
+                        return match;
+                    });
+
+                    if (xmlContent !== originalContent) {
+                        zip.file(fileName, xmlContent);
+                    }
+                }
+            });
 
             // DOCX: docxtemplater com delimitadores [TAG]
             const doc = new Docxtemplater(zip, {
                 delimiters: { start: '[', end: ']' },
                 paragraphLoop: true,
                 linebreaks: true,
-                // Preserva colchetes que não são nossas tags (ex: [Opcional])
                 nullGetter: (part) => `[${part.value}]`
             });
 
