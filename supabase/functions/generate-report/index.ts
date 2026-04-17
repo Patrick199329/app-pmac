@@ -6,7 +6,7 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-console.log("LOG: Motor v2.3 carregado (Full Diagnostics).");
+console.log("LOG: Motor v3.0 carregado (ES256-fix + docxtemplater).");
 
 Deno.serve(async (req: Request) => {
     // 1. CORS Preflight
@@ -24,13 +24,16 @@ Deno.serve(async (req: Request) => {
 
         // 2. Diagnóstico de Autenticação
         const authHeader = req.headers.get('Authorization');
-        if (!authHeader) {
-            console.error("ERRO: Header Authorization não enviado pelo cliente.");
-            throw new Error("Não autorizado: Sem cabeçalho Authorization.");
-        }
+        const stealthToken = req.headers.get('X-PMAC-Token');
 
-        console.log(`DEBUG: Auth Header detectado (tamanho: ${authHeader.length})`);
-        const token = authHeader.replace(/^bearer\s+/i, '');
+        console.log(`DEBUG: Token sources - AuthHeader: ${!!authHeader}, Stealth: ${!!stealthToken}`);
+        
+        const token = stealthToken || authHeader?.replace(/^bearer\s+/i, '');
+
+        if (!token) {
+            console.error("ERRO: Nenhum token de autenticação encontrado.");
+            throw new Error("Não autorizado: Sem token de autenticação.");
+        }
 
         // Chama a API de Auth diretamente para suportar ES256 (evita limitação do client v2.39.7)
         const authApiResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {

@@ -160,15 +160,30 @@ const ManageAccess = () => {
 
     const handleUpdatePlan = async (userId, newPlan) => {
         try {
-            const { data, error } = await supabase.functions.invoke('admin-create-user', {
-                body: {
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            // Usamos fetch manual com um header customizado (X-PMAC-Token) 
+            // para contornar o erro "Unsupported JWT algorithm ES256" do Gateway do Supabase.
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`, // Mantemos para compatibilidade se corrigido
+                    'X-PMAC-Token': session?.access_token || ''        // Novo header stealth
+                },
+                body: JSON.stringify({
                     action: 'update-plan',
                     targetUserId: userId,
                     newPlan: newPlan
-                }
+                })
             });
 
-            if (error) throw error;
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+                throw new Error(errData.error || `Erro HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
 
             setUserData(prev => prev.map(u => 
                 u.id === userId ? { ...u, plan: newPlan === 'SEM_PLANO' ? null : newPlan } : u
@@ -329,8 +344,8 @@ const ManageAccess = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'apikey': anonKey
+                    'apikey': anonKey,
+                    'X-PMAC-Token': session.access_token // Stealth Token
                 },
                 body: JSON.stringify({
                     subtypeCode,
