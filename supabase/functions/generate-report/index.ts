@@ -32,13 +32,30 @@ Deno.serve(async (req: Request) => {
         console.log(`DEBUG: Auth Header detectado (tamanho: ${authHeader.length})`);
         const token = authHeader.replace(/^bearer\s+/i, '');
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        // Chama a API de Auth diretamente para suportar ES256 (evita limitação do client v2.39.7)
+        const authApiResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'apikey': serviceRoleKey
+            }
+        });
 
-        if (authError || !user) {
-            console.error("ERRO AUTH SUPABASE:", authError?.message || "Usuário não encontrado");
+        if (!authApiResponse.ok) {
+            const authErr = await authApiResponse.json().catch(() => ({}));
+            console.error("ERRO AUTH API:", authErr?.message || authApiResponse.status);
             return new Response(JSON.stringify({
                 error: 'Sessão inválida. Por favor, faça login novamente no site.',
-                details: authError?.message || "User null"
+                details: authErr?.message || `HTTP ${authApiResponse.status}`
+            }), { status: 401, headers: corsHeaders });
+        }
+
+        const user = await authApiResponse.json();
+
+        if (!user?.id) {
+            console.error("ERRO AUTH: Usuário não encontrado na resposta da API.");
+            return new Response(JSON.stringify({
+                error: 'Sessão inválida. Por favor, faça login novamente no site.',
+                details: "User null"
             }), { status: 401, headers: corsHeaders });
         }
 
