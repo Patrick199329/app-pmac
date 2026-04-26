@@ -66,7 +66,7 @@ const ManageQuestions = () => {
   const [useIn3rdRound, setUseIn3rdRound] = useState(false);
   const [options, setOptions] = useState([]);
 
-  const resetForm = () => {
+  const resetForm = (e) => {
     setQText('');
     setUseIn3rdRound(false);
     if (selectedSet === 'BASIC') {
@@ -93,13 +93,15 @@ const ManageQuestions = () => {
       setOptions(stOptions);
     }
     setEditingQuestion(null);
-    setIsAdding(false);
+    if (e !== false) {
+      setIsAdding(false);
+    }
   };
 
   // Correct useEffect to reset form when adding
   useEffect(() => {
     if (isAdding && !editingQuestion) {
-      resetForm();
+      resetForm(false);
     }
   }, [isAdding, editingQuestion, selectedSet, selectedSubtype]);
 
@@ -312,9 +314,21 @@ const ManageQuestions = () => {
                           : `T${opt.score_type}`}
                       </div>
                       <div className="option-info-admin">
-                        <span className="opt-code-label">{opt.code}</span>
                         <input
                           type="text"
+                          className="opt-code-input"
+                          value={opt.code}
+                          onChange={(e) => {
+                            const newOpts = [...options];
+                            newOpts[i].code = e.target.value.toUpperCase();
+                            setOptions(newOpts);
+                          }}
+                          placeholder="Código (Ex: T1...)"
+                          title="Fique à vontade para completar com o código da planilha."
+                        />
+                        <input
+                          type="text"
+                          className="opt-text-input"
                           value={opt.text}
                           onChange={(e) => {
                             const newOpts = [...options];
@@ -699,11 +713,21 @@ const ManageQuestions = () => {
           gap: 0.5rem;
         }
 
-        .opt-code-label {
-          font-size: 0.6rem;
+        .opt-code-input {
+          font-size: 0.7rem !important;
           font-weight: 800;
-          color: var(--text-tertiary);
+          color: var(--accent-primary) !important;
           letter-spacing: 0.05em;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+        .opt-code-input::placeholder {
+          color: var(--text-tertiary);
+        }
+
+        .opt-text-input {
+          font-size: 1rem !important;
+          color: var(--text-primary) !important;
         }
 
         .option-info-admin input {
