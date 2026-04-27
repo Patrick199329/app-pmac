@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Play, Loader2, GitMerge, Info, ChevronRight } from 'lucide-react';
@@ -44,8 +44,10 @@ const TieBreakerStart = () => {
     }, [navigate]);
 
     // Auto-start for direct flow
+    const hasStarted = useRef(false);
     useEffect(() => {
-        if (!checking && tiedTypes.length > 0 && !loading) {
+        if (!checking && tiedTypes.length > 0 && !loading && !hasStarted.current) {
+            hasStarted.current = true;
             handleStart();
         }
     }, [checking, tiedTypes, loading]);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Play, Loader2, Target, Info } from 'lucide-react';
@@ -22,8 +22,10 @@ const SubtypeStart = () => {
     }, [type, navigate]);
 
     // Auto-start for direct flow
+    const hasStarted = useRef(false);
     useEffect(() => {
-        if (!checking && type && !loading) {
+        if (!checking && type && !loading && !hasStarted.current) {
+            hasStarted.current = true;
             handleStart();
         }
     }, [checking, type, loading]);
