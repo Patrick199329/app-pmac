@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7'
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-pmac-token',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
@@ -210,7 +210,7 @@ Deno.serve(async (req: Request) => {
 
         if (!convResponse.ok) {
             const errText = await convResponse.text();
-            throw new Error(`Conversor Railway falhou: ${errText}`);
+            throw new Error(`Conversor Railway falhou (HTTP ${convResponse.status}) em ${converterUrl}/convert: ${errText}`);
         }
 
         const pdfBlob = await convResponse.blob();
